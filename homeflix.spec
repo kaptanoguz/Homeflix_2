@@ -55,7 +55,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='static/icon.ico',  # Icon file (convert .svg to .ico first)
+    icon=None,  # Icon file not available
 )
 
 coll = COLLECT(

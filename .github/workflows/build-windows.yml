@@ -34,7 +34,10 @@ jobs:
         pip install pyinstaller>=6.0
 
     - name: Build executable
-      run: python build_windows.py
+      run: |
+        python build_windows.py 2>&1
+        dir dist\Homeflix || echo "Build directory not found"
+        dir dist || echo "dist directory not found"
 
     - name: Create Release
       uses: softprops/action-gh-release@v1

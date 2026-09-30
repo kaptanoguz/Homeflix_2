@@ -35,11 +35,3 @@ jobs:
         name: homeflix-executable
         path: dist/Homeflix/Homeflix.exe
         retention-days: 30
-
-    - name: Upload to Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: dist/Homeflix/Homeflix.exe
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

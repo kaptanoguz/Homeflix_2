@@ -77,15 +77,21 @@ def build_executable():
         print("❌ homeflix.spec bulunamadı!")
         return False
 
-    cmd = [sys.executable, "-m", "PyInstaller", "--clean", "homeflix.spec"]
-    success = run_command(cmd, "PyInstaller çalıştırılıyor...")
-
-    if success:
+    try:
+        cmd = [sys.executable, "-m", "PyInstaller", "--clean", "homeflix.spec"]
+        result = subprocess.run(cmd, check=True, capture_output=False, text=True)
         print("\n✅ Executable başarıyla oluşturuldu!")
         print(f"   📁 Konum: ./dist/Homeflix/")
         print(f"   🎯 Executable: ./dist/Homeflix/Homeflix.exe")
-
-    return success
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"\n❌ PyInstaller hatası: {e}")
+        return False
+    except Exception as e:
+        print(f"\n❌ Beklenmeyen hata: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 def create_installer():

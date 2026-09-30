@@ -1,0 +1,33 @@
+# Build artifacts
+build/
+dist/
+*.pyc
+__pycache__/
+*.egg-info/
+*.spec.bak
+
+# PyInstaller
+*.manifest
+*.spec.debug
+
+# NSIS
+dist/*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Virtual environment
+venv/
+env/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large packages
+windows_build_package/
+windows_build_package.zip

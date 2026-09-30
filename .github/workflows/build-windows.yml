@@ -37,7 +37,7 @@ jobs:
 
     - name: Build executable
       run: |
-        python -u build_windows.py
+        python -u build_windows.py 2>&1
 
     - name: Check build output
       if: always()

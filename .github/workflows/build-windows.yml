@@ -35,9 +35,24 @@ jobs:
 
     - name: Build executable
       run: |
-        python build_windows.py 2>&1
-        dir dist\Homeflix || echo "Build directory not found"
-        dir dist || echo "dist directory not found"
+        python -u build_windows.py
+
+    - name: Check build output
+      if: always()
+      run: |
+        echo "=== Checking dist directory ==="
+        if exist dist\Homeflix (
+          echo "dist\Homeflix exists"
+          dir dist\Homeflix
+        ) else (
+          echo "dist\Homeflix NOT found"
+        )
+        if exist dist (
+          echo "dist exists"
+          dir dist
+        ) else (
+          echo "dist NOT found"
+        )
 
     - name: Create Release
       uses: softprops/action-gh-release@v1

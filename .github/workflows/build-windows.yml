@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: utf-8
 
     steps:
     - uses: actions/checkout@v5
@@ -39,20 +41,21 @@ jobs:
 
     - name: Check build output
       if: always()
+      shell: pwsh
       run: |
-        echo "=== Checking dist directory ==="
-        if exist dist\Homeflix (
-          echo "dist\Homeflix exists"
-          dir dist\Homeflix
-        ) else (
-          echo "dist\Homeflix NOT found"
-        )
-        if exist dist (
-          echo "dist exists"
-          dir dist
-        ) else (
-          echo "dist NOT found"
-        )
+        Write-Host "=== Checking dist directory ===" -ForegroundColor Green
+        if (Test-Path "dist\Homeflix") {
+          Write-Host "dist\Homeflix exists" -ForegroundColor Green
+          Get-ChildItem -Path "dist\Homeflix" -Recurse | Select-Object FullName
+        } else {
+          Write-Host "dist\Homeflix NOT found" -ForegroundColor Red
+        }
+        if (Test-Path "dist") {
+          Write-Host "dist exists" -ForegroundColor Green
+          Get-ChildItem -Path "dist"
+        } else {
+          Write-Host "dist NOT found" -ForegroundColor Red
+        }
 
     - name: Create Release
       uses: softprops/action-gh-release@v1

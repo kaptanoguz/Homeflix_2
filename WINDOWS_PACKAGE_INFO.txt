@@ -1,0 +1,76 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║   🍿 HOMEFLIX WINDOWS DERLEME PAKETI - HAZIR!                    ║
+║                                                                    ║
+║   Windows'ta çalıştırmak için gereken HER ŞEY bir pakette!       ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+📦 DOSYA: windows_build_package.zip (231 MB)
+
+🎯 İÇERİK - WINDOWS'TA ÇALIŞTIRACAĞINIZ HER ŞEY:
+
+✅ ÇALIŞMA DOSYALARI:
+   • app.py                    Ana uygulama dosyası
+   • homeflix/                 Kaynak kodlar
+   • templates/                HTML şablonları
+   • static/                   CSS, JavaScript, ikonlar
+   • data/                     Veritabanı ve cache
+
+✅ BUILD DOSYALARI (Windows'ta çalıştırılacak):
+   • build_windows.bat         ⭐ BUNU ÇALIŞTIRINIZ! (çift tıkla)
+   • build_windows.py          Python build scripti
+   • homeflix.spec             PyInstaller konfigürasyonu
+   • windows_installer.nsi     Windows Installer scripti
+
+✅ REHBERLERİ VE KONFİG:
+   • README_WINDOWS.txt        Hızlı başlangıç (bu dosya gibi)
+   • BUILD_WINDOWS.md          Türkçe detaylı kılavuz
+   • requirements-build.txt    Python bağımlılıkları
+
+═══════════════════════════════════════════════════════════════════
+
+🚀 WINDOWS'TA YAPILACAKLAR:
+
+1. ZIP dosyasını çıkarın
+   → windows_build_package/ klasörü oluşacak
+
+2. Python 3.8+ yükleyin (yoksa)
+   → https://www.python.org/downloads/
+   → Kurulum sırasında "Add Python to PATH" seçmeyi unutmayın!
+
+3. windows_build_package klasörüne girin
+
+4. build_windows.bat'ı çift tıklayın
+   VEYA cmd'de: python build_windows.py
+
+5. Bekleyin... (10-15 dakika)
+
+6. BITTI! ✅
+   dist/Homeflix/Homeflix.exe
+
+═══════════════════════════════════════════════════════════════════
+
+📊 ÇIKTI DOSYALARI:
+
+   dist/Homeflix/
+   └── Homeflix.exe              ⭐ ANA PROGRAM!
+       (+ tüm kütüphaneler)
+
+   dist/HomeflixInstaller.exe    (isteğe bağlı, NSIS kuruluysa)
+
+═══════════════════════════════════════════════════════════════════
+
+❓ SORULAR?
+
+   • Python yüklenmedi? → https://python.org
+   • PATH sorunu? → Python'u yeniden yükleyin
+   • Admin hakkı? → cmd'yi yönetici olarak açın
+   • Detaylı bilgi? → BUILD_WINDOWS.md oku (Türkçe)
+
+═══════════════════════════════════════════════════════════════════
+
+✨ BAŞARILAR! 🚀
+
+   Windows'ta build_windows.bat çalıştırın ve bekleyin.
+   Homeflix.exe otomatik olarak oluşacak!
+
+═══════════════════════════════════════════════════════════════════

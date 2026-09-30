@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0b0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Homeflix</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0f'/%3E%3Cpath d='M18 12h9v40h-9zM37 12h9v40h-9zM18 28h28v8H18z' fill='%23e5202e'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/app.css?v={{ v }}">
+</head>
+<body>
+
+<header class="nav" id="nav">
+  <a class="brand" href="#home" aria-label="Homeflix ana sayfa">HOMEFLIX</a>
+  <nav class="tabs" id="tabs">
+    <a class="tab" href="#home" data-tab="home">Ana Sayfa</a>
+    <a class="tab" href="#movies" data-tab="movies">Filmler</a>
+    <a class="tab" href="#series" data-tab="series">Diziler</a>
+    <a class="tab" href="#collections" data-tab="collections">Koleksiyonlar</a>
+    <a class="tab" href="#list" data-tab="list">Listem</a>
+  </nav>
+  <div class="nav-actions">
+    <button class="icon-btn" data-action="search" title="Ara ( / )" aria-label="Ara"><svg class="icon"><use href="#i-search"/></svg></button>
+    <button class="icon-btn" data-action="shuffle" title="Rastgele film" aria-label="Rastgele film"><svg class="icon"><use href="#i-shuffle"/></svg></button>
+    <button class="icon-btn" data-action="settings" title="Ayarlar" aria-label="Ayarlar"><svg class="icon"><use href="#i-settings"/></svg></button>
+  </div>
+</header>
+
+<main id="view"></main>
+
+<nav class="tabbar" id="tabbar">
+  <a href="#home" data-tab="home"><svg class="icon"><use href="#i-home"/></svg>Ana Sayfa</a>
+  <a href="#movies" data-tab="movies"><svg class="icon"><use href="#i-film"/></svg>Filmler</a>
+  <a href="#series" data-tab="series"><svg class="icon"><use href="#i-tv"/></svg>Diziler</a>
+  <a href="#collections" data-tab="collections"><svg class="icon"><use href="#i-stack"/></svg>Koleksiyon</a>
+  <a href="#list" data-tab="list"><svg class="icon"><use href="#i-bookmark"/></svg>Listem</a>
+</nav>
+
+<div class="overlay" id="detail" role="dialog" aria-modal="true">
+  <div class="scrim"></div>
+  <div class="sheet-scroll" id="detail-scroll" data-dismiss>
+    <article class="sheet" id="detail-sheet"></article>
+  </div>
+</div>
+
+<div class="overlay" id="search" role="dialog" aria-modal="true">
+  <div class="search-panel" id="search-panel">
+    <div class="search-bar">
+      <svg class="icon"><use href="#i-search"/></svg>
+      <input id="search-input" type="search" placeholder="Film, dizi veya tür ara…" autocomplete="off" spellcheck="false">
+      <button class="icon-btn" data-action="back" aria-label="Kapat"><svg class="icon"><use href="#i-x"/></svg></button>
+    </div>
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<div class="overlay" id="settings" role="dialog" aria-modal="true">
+  <div class="scrim"></div>
+  <div class="sheet-scroll" data-dismiss>
+    <article class="sheet" style="max-width:760px" id="settings-sheet"></article>
+  </div>
+</div>
+
+<div class="player" id="player">
+  <video id="video" playsinline webkit-playsinline preload="auto"></video>
+  <div class="p-subs" id="p-subs"></div>
+  <div class="p-center"><div class="p-loading"></div></div>
+  <div class="p-flash" id="p-flash"><svg class="icon fill"><use href="#i-play"/></svg></div>
+  <div class="p-seekhint left" id="p-hint-l">« 10 sn</div>
+  <div class="p-seekhint right" id="p-hint-r">10 sn »</div>
+  <div class="p-ui">
+    <div class="p-top">
+      <button class="p-btn" data-p="close" title="Geri (Esc)" aria-label="Geri"><svg class="icon"><use href="#i-back"/></svg></button>
+      <div class="p-title"><strong id="p-title"></strong><span id="p-sub"></span></div>
+    </div>
+    <div class="p-bottom">
+      <div class="p-bar" id="p-bar">
+        <div class="p-track"><div class="p-buf" id="p-buf"></div><div class="p-played" id="p-played"></div><div class="p-knob" id="p-knob"></div></div>
+        <div class="p-tip" id="p-tip">0:00</div>
+      </div>
+      <div class="p-controls">
+        <button class="p-btn big" data-p="toggle" title="Oynat / Duraklat (Boşluk)" aria-label="Oynat"><svg class="icon fill"><use id="p-playicon" href="#i-play"/></svg></button>
+        <button class="p-btn" data-p="back10" title="10 sn geri (←)" aria-label="10 saniye geri"><svg class="icon"><use href="#i-rewind"/></svg></button>
+        <button class="p-btn" data-p="fwd10" title="10 sn ileri (→)" aria-label="10 saniye ileri"><svg class="icon"><use href="#i-forward"/></svg></button>
+        <div class="p-vol">
+          <button class="p-btn" data-p="mute" title="Sessiz (M)" aria-label="Ses"><svg class="icon"><use id="p-volicon" href="#i-vol"/></svg></button>
+          <input type="range" id="p-volume" min="0" max="1" step="0.02" value="1" aria-label="Ses düzeyi">
+        </div>
+        <div class="p-time"><span id="p-cur">0:00</span> <i>/ <span id="p-dur">0:00</span></i></div>
+        <div class="p-spacer"></div>
+        <button class="p-btn" data-p="next" id="p-next" title="Sonraki bölüm (N)" aria-label="Sonraki bölüm" hidden><svg class="icon fill"><use href="#i-next"/></svg></button>
+        <button class="p-btn" data-p="panel" title="Ses ve altyazı (C)" aria-label="Ses ve altyazı"><svg class="icon"><use href="#i-cc"/></svg></button>
+        <button class="p-btn p-hide-sm" data-p="speed" id="p-speed" title="Oynatma hızı" aria-label="Hız"><svg class="icon"><use href="#i-gauge"/></svg><span class="tag" id="p-speedtag"></span></button>
+        <button class="p-btn" data-p="fullscreen" title="Tam ekran (F)" aria-label="Tam ekran"><svg class="icon"><use id="p-fsicon" href="#i-expand"/></svg></button>
+      </div>
+    </div>
+    <div class="p-panel" id="p-panel"></div>
+  </div>
+  <div class="upnext" id="upnext"></div>
+  <div class="drop-hint">Altyazı dosyasını bırakın</div>
+  <input type="file" id="sub-file" accept=".srt,.vtt,.ass,.ssa,.sub" hidden>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="status" id="status"><div class="spin"></div><span id="status-text"></span></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18M17 3v18M3 8h4M3 16h4M17 8h4M17 16h4M3 12h18"/></symbol>
+  <symbol id="i-tv" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="m17 2-5 5-5-5"/></symbol>
+  <symbol id="i-stack" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M6 5h12M9 2h6"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4-6 4z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.2-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4.2" height="16" rx="1"/><rect x="13.8" y="4" width="4.2" height="16" rx="1"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6M12 7.5v.01"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path fill="currentColor" stroke="none" d="m12 2.8 2.8 5.7 6.3.9-4.55 4.43 1.07 6.27L12 17.13 6.38 20.1l1.07-6.27L2.9 9.4l6.3-.9z"/></symbol>
+  <symbol id="i-rewind" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor" stroke="none" font-family="sans-serif">10</text></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/><text x="12" y="15.5" text-anchor="middle" font-size="7.5" font-weight="700" fill="currentColor" stroke="none" font-family="sans-serif">10</text></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m23 9-6 6M17 9l6 6"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M5 4.5v15a1 1 0 0 0 1.5.86L17 13.5V19a1 1 0 0 0 2 0V5a1 1 0 0 0-2 0v5.5L6.5 3.64A1 1 0 0 0 5 4.5z"/></symbol>
+  <symbol id="i-cc" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M7 9h4M13 9h4M7 13h7"/></symbol>
+  <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M12 14l4-4"/><path d="M3.3 17a9.9 9.9 0 1 1 17.4 0"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/></symbol>
+  <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></symbol>
+  <symbol id="i-popcorn" viewBox="0 0 24 24"><path d="M5 9h14l-2 12H7z"/><path d="M9 9v12M15 9v12M6 9a3 3 0 0 1 3-4 3 3 0 0 1 6 0 3 3 0 0 1 3 4"/></symbol>
+</svg>
+
+<script src="/static/app.js?v={{ v }}"></script>
+</body>
+</html>

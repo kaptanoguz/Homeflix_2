@@ -1,0 +1,41 @@
+🍿 HOMEFLIX WINDOWS DERLEME - HAZIR!
+════════════════════════════════════════════════════════════
+
+✅ HAZIRLANMIŞ DOSYALAR:
+
+  📄 homeflix.spec              PyInstaller yapı dosyası
+  🐍 build_windows.py           Python build scripti (otomatik)
+  🪟 build_windows.bat          Windows batch dosyası (çift tıkla!)
+  📦 windows_installer.nsi      NSIS installer scripti
+  📋 BUILD_WINDOWS.md           Detaylı kılavuz (Turkish)
+  📦 requirements-build.txt     Build bağımlılıkları
+
+════════════════════════════════════════════════════════════
+WINDOWS'TA KURULUM:
+════════════════════════════════════════════════════════════
+
+1. Python yükleyin: https://www.python.org/downloads/
+   (Python 3.8 veya daha yeni)
+
+2. Proje dosyalarını kopyalayın (tüm klasör)
+
+3. Komut satırında çalıştırın:
+   
+   build_windows.bat
+   
+   VEYA
+   
+   python build_windows.py
+
+4. Bekleyin (10-15 dakika)
+
+5. Hazır! ✅
+   📍 dist/Homeflix/Homeflix.exe
+   📍 dist/HomeflixInstaller.exe (NSIS kuruluysa)
+
+════════════════════════════════════════════════════════════
+DİKKAT: PyInstaller'ın Windows üzerinde çalışması gerekiyor!
+Linux/Mac'te derlemek Linux/macOS executable'ı oluşturur.
+════════════════════════════════════════════════════════════
+
+Sorularınız için BUILD_WINDOWS.md dosyasını okuyun.

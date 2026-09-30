@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Homeflix
+Comment=Ev sineması
+Exec=/home/oguz/Antigravity_Projects/Homeflix_v2/run.sh
+Icon=/home/oguz/Antigravity_Projects/Homeflix_v2/static/icon.svg
+Terminal=false
+Categories=AudioVideo;Video;Player;

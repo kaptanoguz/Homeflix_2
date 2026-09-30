@@ -29,6 +29,13 @@ jobs:
     - name: Build executable
       run: python -u build_windows.py
 
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: homeflix-executable
+        path: dist/Homeflix/Homeflix.exe
+        retention-days: 30
+
     - name: Upload to Release
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1

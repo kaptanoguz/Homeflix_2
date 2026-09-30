@@ -30,7 +30,7 @@ jobs:
       run: python -u build_windows.py
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: homeflix-executable
         path: dist/Homeflix/Homeflix.exe

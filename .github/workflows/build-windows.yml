@@ -22,50 +22,17 @@ jobs:
       with:
         python-version: '3.12'
 
-    - name: Display Python version
-      run: python -c "import sys; print(sys.version)"
-
-    - name: Install pip and upgrade
+    - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip setuptools wheel
-
-    - name: Install runtime dependencies
-      run: |
-        pip install flask>=3.0 waitress>=3.0 requests>=2.31 pillow>=10.0 pywebview>=5.0
-
-    - name: Install build dependencies
-      run: |
-        pip install pyinstaller>=6.0
+        pip install -q flask waitress requests pillow pywebview pyinstaller
 
     - name: Build executable
-      run: |
-        python -u build_windows.py 2>&1
+      run: python -u build_windows.py
 
-    - name: Check build output
-      if: always()
-      shell: pwsh
-      run: |
-        Write-Host "=== Checking dist directory ===" -ForegroundColor Green
-        if (Test-Path "dist\Homeflix") {
-          Write-Host "dist\Homeflix exists" -ForegroundColor Green
-          Get-ChildItem -Path "dist\Homeflix" -Recurse | Select-Object FullName
-        } else {
-          Write-Host "dist\Homeflix NOT found" -ForegroundColor Red
-        }
-        if (Test-Path "dist") {
-          Write-Host "dist exists" -ForegroundColor Green
-          Get-ChildItem -Path "dist"
-        } else {
-          Write-Host "dist NOT found" -ForegroundColor Red
-        }
-
-    - name: Create Release
+    - name: Upload to Release
+      if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
-      if: success()
       with:
-        files: |
-          dist/Homeflix/Homeflix.exe
-        draft: false
-        prerelease: false
+        files: dist/Homeflix/Homeflix.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

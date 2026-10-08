@@ -80,7 +80,7 @@ def is_kids(genre, cert, tmdb_id=0, include=(), exclude=()):
         return 0
     if any(g in genre for g in KIDS_GENRES) and (_rating_in(cert, KIDS_RATINGS) if cert else 'Aile' in genre):
         return 1
-    if 'Komedi' in genre and cert and _rating_in(cert, TEEN_RATINGS):
+    if 'Komedi' in genre and 'Romantik' not in genre and cert and _rating_in(cert, TEEN_RATINGS):
         return 2
     return 0
 

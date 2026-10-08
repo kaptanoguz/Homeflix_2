@@ -523,9 +523,18 @@ def lan_ips():
         return []
 
 
+def is_local_request():
+    """True only for requests from this computer (app window, 127.0.0.1 or its own LAN address)."""
+    addr = request.remote_addr or ''
+    return addr in ('127.0.0.1', '::1') or addr.startswith('127.') or addr in lan_ips()
+
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
+    local = is_local_request()
     if request.method == 'POST':
+        if not local:
+            abort(403)
         d = request.get_json(force=True, silent=True) or {}
         values = {k: str(v).strip() for k, v in d.items() if k in ('movie_dir', 'series_dir', 'omdb_api_key') and str(v).strip()}
         settings.update(values)
@@ -536,8 +545,9 @@ def api_settings():
                  'episodes': c.execute("SELECT COUNT(*) FROM episodes").fetchone()[0],
                  'collections': c.execute("SELECT COUNT(*) FROM collections").fetchone()[0]}
     from .config import PORT
-    return jsonify({**{k: settings.get(k, '') for k in ('movie_dir', 'series_dir', 'omdb_api_key')},
-                    'stats': stats, 'urls': [f"http://{ip}:{PORT}" for ip in lan_ips()]})
+    # Folder paths and the API key are only shown to (and editable from) this computer, not other devices on the LAN.
+    private = {k: settings.get(k, '') if local else '' for k in ('movie_dir', 'series_dir', 'omdb_api_key')}
+    return jsonify({**private, 'local': local, 'stats': stats, 'urls': [f"http://{ip}:{PORT}" for ip in lan_ips()]})
 
 
 @app.route('/api/scan', methods=['POST'])

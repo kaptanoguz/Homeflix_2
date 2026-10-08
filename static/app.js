@@ -559,12 +559,12 @@ async function openSettings() {
         <div class="stat"><b>${S.cols.length}</b><span>Koleksiyon</span></div>
       </div>
       <div class="section"><div class="section-head"><h3>Kütüphane</h3></div>
-        <div class="form">
+        <div class="form">${s.local ? `
           <div class="field"><label for="conf-movie">Film klasörü</label><input id="conf-movie" value="${esc(s.movie_dir)}"></div>
           <div class="field"><label for="conf-series">Dizi klasörü</label><input id="conf-series" value="${esc(s.series_dir)}"></div>
-          <div class="field"><label for="conf-key">OMDb API anahtarı</label><input id="conf-key" value="${esc(s.omdb_api_key)}"></div>
-          <div class="actions">
-            <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}Kaydet ve Tara</button>
+          <div class="field"><label for="conf-key">OMDb API anahtarı</label><input id="conf-key" value="${esc(s.omdb_api_key)}"></div>` : ''}
+          <div class="actions">${s.local ? `
+            <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}Kaydet ve Tara</button>` : ''}
             <button class="btn btn-ghost btn-sm" data-action="rescan">${icon('refresh')}Yeniden Tara</button>
             <button class="btn btn-ghost btn-sm" data-action="emby">Emby'den Güncelle</button>
             <button class="btn btn-ghost btn-sm" data-action="enrich">Eksik Bilgileri Tekrar Ara</button>

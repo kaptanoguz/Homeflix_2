@@ -4,11 +4,12 @@ import os
 import re
 import subprocess
 import threading
+import time
 
+import requests
 from flask import Response
 
-from .config import IMAGES_DIR, THUMBS_DIR, TMDB_IMG
-from .metadata import download
+from .config import IMAGES_DIR, THUMBS_DIR, TMDB_IMG, USER_AGENT
 from .names import vob_parts
 
 HAS_VAAPI = os.path.exists('/dev/dri/renderD128')
@@ -148,11 +149,48 @@ def thumbnail(src, width):
         return src
 
 
+# Image requests are served by the same worker threads as video streams. Without internet (VPN reconnects etc.) a
+# retrying download could hold a thread for a minute and starve playback, so these fetches fail fast, run at most
+# a few at a time and are not retried for a while after a failure.
+_img_http = requests.Session()
+_img_http.headers.update({'User-Agent': USER_AGENT})
+_img_slots = threading.BoundedSemaphore(4)
+_img_failed = {}
+_img_lock = threading.Lock()
+IMG_RETRY_AFTER = 300
+
+
+def _fetch_image(url, dest):
+    try:
+        r = _img_http.get(url, timeout=(3, 8))
+        if r.status_code == 200 and len(r.content) > 1000:
+            tmp = f"{dest}.{threading.get_ident()}.part"
+            with open(tmp, 'wb') as f:
+                f.write(r.content)
+            os.replace(tmp, dest)
+            return True
+    except (requests.RequestException, OSError):
+        pass
+    return False
+
+
 def remote_image(tmdb_path, size='w1280'):
     if not tmdb_path:
         return None
     name = hashlib.sha1(f"{size}{tmdb_path}".encode()).hexdigest() + '.jpg'
     dest = os.path.join(IMAGES_DIR, name)
-    if os.path.exists(dest) or download(f"{TMDB_IMG}{size}{tmdb_path}", dest):
+    if os.path.exists(dest):
         return dest
+    with _img_lock:
+        if time.time() - _img_failed.get(name, 0) < IMG_RETRY_AFTER:
+            return None
+    if not _img_slots.acquire(timeout=2):
+        return None
+    try:
+        if os.path.exists(dest) or _fetch_image(f"{TMDB_IMG}{size}{tmdb_path}", dest):
+            return dest
+    finally:
+        _img_slots.release()
+    with _img_lock:
+        _img_failed[name] = time.time()
     return None

@@ -31,7 +31,7 @@ def serve():
     for ip in lan_ips():
         print(f"🌐 Ev ağından:      http://{ip}:{PORT}")
     print("=======================================================\n")
-    waitress_serve(app, host='0.0.0.0', port=PORT, threads=16, connection_limit=100, channel_timeout=60, backlog=256)
+    waitress_serve(app, host='0.0.0.0', port=PORT, threads=48, connection_limit=100, channel_timeout=60, backlog=256)
 
 
 class WindowApi:

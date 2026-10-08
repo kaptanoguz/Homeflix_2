@@ -61,6 +61,7 @@ TEEN_RATINGS = {'US': {'G', 'PG', 'PG-13', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV
                 'TR': {'G', '0+', '6+', '7+', '6A', '7A', '10+', '10A', '13+', '13A'}}
 # Hand-picked additions / removals (TMDb ids), editable in the config table as JSON lists.
 KIDS_INCLUDE_DEFAULT = [671, 672, 673, 674, 675, 767, 12444, 12445, 522402]   # Harry Potter 1-8, Finch
+KIDS_EXCLUDE_SERIES_DEFAULT = [228853, 122186]                                # Prens, Doğu
 
 
 def _rating_in(cert, table):
@@ -86,15 +87,20 @@ def is_kids(genre, cert, tmdb_id=0, include=(), exclude=()):
 
 
 def kids_lists():
+    """(movie include, movie exclude, series include, series exclude) TMDb id sets; movie and TV ids are separate."""
     import json
+    defaults = {'kids_include': KIDS_INCLUDE_DEFAULT, 'kids_exclude': [], 'kids_include_series': [],
+                'kids_exclude_series': KIDS_EXCLUDE_SERIES_DEFAULT}
     with session() as c:
-        conf = {r['key']: r['value'] for r in c.execute("SELECT key, value FROM config WHERE key IN ('kids_include', 'kids_exclude')")}
-    try:
-        include = set(json.loads(conf['kids_include'])) if 'kids_include' in conf else set(KIDS_INCLUDE_DEFAULT)
-        exclude = set(json.loads(conf.get('kids_exclude', '[]')))
-    except ValueError:
-        include, exclude = set(KIDS_INCLUDE_DEFAULT), set()
-    return include, exclude
+        conf = {r['key']: r['value'] for r in c.execute(
+            f"SELECT key, value FROM config WHERE key IN ({','.join('?' * len(defaults))})", list(defaults))}
+    out = []
+    for key, default in defaults.items():
+        try:
+            out.append(set(json.loads(conf[key])) if key in conf else set(default))
+        except ValueError:
+            out.append(set(default))
+    return tuple(out)
 
 
 def build_library():
@@ -107,7 +113,7 @@ def build_library():
         for e in c.execute("SELECT series_id, season, episode FROM episodes"):
             ep_keys[e['series_id']].add((e['season'], e['episode']))
         cols = {r['id']: r for r in c.execute("SELECT * FROM collections")}
-    kids_in, kids_out = kids_lists()
+    kids_in, kids_out, kids_in_tv, kids_out_tv = kids_lists()
 
     out_movies = []
     by_col = defaultdict(list)
@@ -172,7 +178,7 @@ def build_library():
             'r': s['rating'] if s['rating'] not in (None, '', 'N/A') else '', 'g': s['genre'] or '', 'p': s['plot'] or '',
             'add': max(g['added_at'] or 0 for g in group), 'tm': s['tmdb_id'] or 0,
             'ph': _pv(s['poster']), 'bd': bool(s['backdrop']),
-            'eps': len(keys), 'seasons': len({k[0] for k in keys}), 'k': is_kids(s['genre'], s['cert'], 0, (), ())})
+            'eps': len(keys), 'seasons': len({k[0] for k in keys}), 'k': is_kids(s['genre'], s['cert'], s['tmdb_id'], kids_in_tv, kids_out_tv)})
     return {'movies': out_movies, 'series': out_series, 'collections': collections,
             'version': state.snapshot()['version']}
 

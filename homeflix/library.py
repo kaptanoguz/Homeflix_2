@@ -193,9 +193,30 @@ def read_nfo(path, root_tag):
     }
 
 
+_tiny_cache = {}
+
+
+def is_tiny(path, limit=200):
+    """True for placeholder images (some downloaders drop a 50x50 poster.jpg) so TMDb artwork is used instead."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return False
+    key = (path, st.st_mtime, st.st_size)
+    if key not in _tiny_cache:
+        try:
+            from PIL import Image
+            with Image.open(path) as im:
+                _tiny_cache[key] = max(im.size) < limit
+        except Exception:
+            _tiny_cache[key] = False
+    return _tiny_cache[key]
+
+
 def _images(folder):
     try:
-        return [f for f in os.listdir(folder) if f.lower().endswith(IMG_EXTS) and not f.startswith('._')]
+        return [f for f in os.listdir(folder) if f.lower().endswith(IMG_EXTS) and not f.startswith('._')
+                and not is_tiny(os.path.join(folder, f))]
     except OSError:
         return []
 

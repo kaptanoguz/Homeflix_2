@@ -75,11 +75,12 @@ def parse_season_episode(rel_path):
         if m:
             season = int(m.group(1))
             break
-    m = re.search(r'[Ss](\d+)\s*[Ee](\d+)', filename, re.I)
+    m = re.search(r'[Ss](\d+)\s*[Ee][Pp]?\s*(\d+)', filename, re.I)
     if m:
         season, episode = int(m.group(1)), int(m.group(2))
     else:
-        m = re.search(r'(\d+)\s*\.?\s*[Ss]ezon\s*(\d+)\s*\.?\s*[Bb]ölüm', filename, re.I)
+        # "2 Sezon 7 Bölüm", also the "Bolum" / "Bölm" / "BÖ" spellings that turn up in downloaded file names
+        m = re.search(r'(\d+)\s*\.?\s*sezon\s*\.?\s*(\d+)', filename, re.I)
         if m:
             season, episode = int(m.group(1)), int(m.group(2))
         else:

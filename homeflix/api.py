@@ -363,6 +363,44 @@ def play(kind, iid):
     return media.stream(path, request.args.get('t', 0, type=float), audio)
 
 
+@app.route('/api/hls/<kind>/<int:iid>')
+def api_hls(kind, iid):
+    path = media_path(kind, iid)
+    sid = media.hls_start(path, max(0.0, request.args.get('t', 0, type=float)), request.args.get('a', 0, type=int),
+                          request.args.get('c', '')[:64])
+    if not sid:
+        abort(503)
+    return jsonify({'url': f'/hls/{sid}/index.m3u8'})
+
+
+@app.route('/api/hls/stop', methods=['POST'])
+def api_hls_stop():
+    client = request.args.get('c', '')[:64]
+    if client:
+        media.hls_stop(client, request.args.get('s', ''))
+    return jsonify({'ok': True})
+
+
+@app.route('/hls/<sid>/<name>')
+def hls_file(sid, name):
+    p = media.hls_file(sid, name)
+    if not p:
+        abort(404)
+    playlist = name.endswith('.m3u8')
+    r = send_file(p, mimetype='application/vnd.apple.mpegurl' if playlist else 'video/mp2t', conditional=not playlist)
+    r.headers['Cache-Control'] = 'no-cache' if playlist else 'max-age=3600'
+    return r
+
+
+@app.route('/api/client_error', methods=['POST'])
+def api_client_error():
+    d = request.get_json(force=True, silent=True) or {}
+    print(f"Oynatma hatası [{request.remote_addr}] {str(d.get('item', ''))[:20]} mod={str(d.get('mode', ''))[:10]} "
+          f"kod={str(d.get('code', ''))[:10]} t={_num(d.get('t')):.0f} deneme={_num(d.get('retry')):.0f} "
+          f"{str(d.get('msg', ''))[:120]} | {request.headers.get('User-Agent', '')[:160]}")
+    return jsonify({'ok': True})
+
+
 @app.route('/sub/<kind>/<int:iid>/local/<int:n>')
 def sub_local(kind, iid, n):
     subs = subtitles.local_subtitles(media_path(kind, iid))

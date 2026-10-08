@@ -12,6 +12,5 @@ if [ ! -x venv/bin/python ]; then
     venv/bin/pip install -q -r requirements.txt || exit 1
 fi
 
-pkill -f "python.*Homeflix_Linux/app.py" 2>/dev/null
 # homeflix.service çalışıyorsa app.py yalnızca pencereyi açar
 exec venv/bin/python app.py "$@"

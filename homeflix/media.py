@@ -2,13 +2,15 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import threading
+import time
 
+import requests
 from flask import Response
 
-from .config import IMAGES_DIR, THUMBS_DIR, TMDB_IMG
-from .metadata import download
+from .config import CACHE_DIR, IMAGES_DIR, THUMBS_DIR, TMDB_IMG, USER_AGENT
 from .names import vob_parts
 
 HAS_VAAPI = os.path.exists('/dev/dri/renderD128')
@@ -78,7 +80,8 @@ def _track_label(lang, title=None, channels=None):
     return label
 
 
-def stream(path, start=0.0, audio=0):
+def _transcode_cmd(path, start, audio, input_opts=()):
+    """ffmpeg command up to the audio codec (input, mapping, H.264 video); returns it with the source audio codec."""
     info = probe(path)
     v = (info['video'] or {}).get('codec', 'h264')
     tracks = info['audio']
@@ -90,13 +93,18 @@ def stream(path, start=0.0, audio=0):
         cmd += ['-vaapi_device', '/dev/dri/renderD128']
     if start > 0:
         cmd += ['-ss', f"{start:.2f}"]
-    cmd += ['-i', ('concat:' + '|'.join(parts)) if parts else path, '-map', '0:v:0', '-map', f'0:a:{audio}?']
+    cmd += [*input_opts, '-i', ('concat:' + '|'.join(parts)) if parts else path, '-map', '0:v:0', '-map', f'0:a:{audio}?']
     if v == 'h264':
         cmd += ['-c:v', 'copy']
     elif HAS_VAAPI:
         cmd += ['-vf', 'format=nv12,hwupload', '-c:v', 'h264_vaapi']
     else:
         cmd += ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '22', '-pix_fmt', 'yuv420p']
+    return cmd, a
+
+
+def stream(path, start=0.0, audio=0):
+    cmd, a = _transcode_cmd(path, start, audio)
     if a == 'aac':
         cmd += ['-c:a', 'copy', '-bsf:a', 'aac_adtstoasc']
     elif a == 'mp3':
@@ -120,6 +128,100 @@ def stream(path, start=0.0, audio=0):
     r = Response(generate(), mimetype='video/mp4')
     r.headers['Cache-Control'] = 'no-store'
     return r
+
+
+# ---------------------------------------------------------------- HLS (iOS / Safari)
+# Apple's WebKit only plays progressive video it can fetch with byte ranges, which a live ffmpeg pipe can't offer.
+# For those clients the same transcode is segmented into an HLS event playlist on disk instead.
+
+HLS_DIR = os.path.join(CACHE_DIR, 'hls')
+HLS_IDLE = 600
+HLS_MAX = 8
+HLS_FILE = re.compile(r'^(index\.m3u8|seg\d{5}\.ts)$')
+_hls = {}
+_hls_lock = threading.Lock()
+_hls_reaper = None
+shutil.rmtree(HLS_DIR, ignore_errors=True)
+
+
+def _hls_kill(sid):
+    s = _hls.pop(sid, None)
+    if s:
+        s['proc'].kill()
+        s['proc'].wait()
+        shutil.rmtree(s['dir'], ignore_errors=True)
+
+
+def _hls_reap():
+    while True:
+        time.sleep(30)
+        with _hls_lock:
+            for sid, s in list(_hls.items()):
+                if time.time() - s['last'] > HLS_IDLE:
+                    _hls_kill(sid)
+
+
+def _hls_ready(s):
+    try:
+        with open(os.path.join(s['dir'], 'index.m3u8')) as f:
+            return '.ts' in f.read()
+    except OSError:
+        return False
+
+
+def hls_start(path, start=0.0, audio=0, client=''):
+    """Starts (or reuses) a segmenting session and returns its id once the first segment exists."""
+    global _hls_reaper
+    sid = hashlib.sha1(f"{client}|{path}|{start:.1f}|{audio}".encode()).hexdigest()[:20]
+    with _hls_lock:
+        if _hls_reaper is None:
+            _hls_reaper = threading.Thread(target=_hls_reap, daemon=True)
+            _hls_reaper.start()
+        s = _hls.get(sid)
+        if not s:
+            for other in [k for k, o in _hls.items() if client and o['client'] == client]:
+                _hls_kill(other)
+            for old in sorted(_hls, key=lambda k: _hls[k]['last'])[:max(0, len(_hls) - HLS_MAX + 1)]:
+                _hls_kill(old)
+            d = os.path.join(HLS_DIR, sid)
+            shutil.rmtree(d, ignore_errors=True)
+            os.makedirs(d)
+            # Burst the first minute for a quick start, then stay a few times ahead of playback.
+            cmd, a = _transcode_cmd(path, start, audio, ('-readrate', '4', '-readrate_initial_burst', '60'))
+            cmd += ['-c:a', 'copy'] if a == 'aac' else ['-c:a', 'aac', '-b:a', '192k', '-ac', '2']
+            cmd += ['-sn', '-f', 'hls', '-hls_time', '4', '-hls_init_time', '1', '-hls_list_size', '0',
+                    '-hls_playlist_type', 'event', '-hls_flags', 'independent_segments+temp_file',
+                    '-hls_segment_filename', os.path.join(d, 'seg%05d.ts'), os.path.join(d, 'index.m3u8')]
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            s = _hls[sid] = {'proc': proc, 'dir': d, 'client': client, 'last': time.time()}
+        s['last'] = time.time()
+    deadline = time.time() + 25
+    while not _hls_ready(s):
+        if s['proc'].poll() is not None or time.time() > deadline:
+            if not _hls_ready(s):
+                with _hls_lock:
+                    _hls_kill(sid)
+                return None
+        time.sleep(0.05)
+    return sid
+
+
+def hls_stop(client, sid):
+    with _hls_lock:
+        if sid in _hls and _hls[sid]['client'] == client:
+            _hls_kill(sid)
+
+
+def hls_file(sid, name):
+    if not HLS_FILE.match(name):
+        return None
+    with _hls_lock:
+        s = _hls.get(sid)
+        if not s:
+            return None
+        s['last'] = time.time()
+    p = os.path.join(s['dir'], name)
+    return p if os.path.exists(p) else None
 
 
 # ---------------------------------------------------------------- images
@@ -148,11 +250,48 @@ def thumbnail(src, width):
         return src
 
 
+# Image requests are served by the same worker threads as video streams. Without internet (VPN reconnects etc.) a
+# retrying download could hold a thread for a minute and starve playback, so these fetches fail fast, run at most
+# a few at a time and are not retried for a while after a failure.
+_img_http = requests.Session()
+_img_http.headers.update({'User-Agent': USER_AGENT})
+_img_slots = threading.BoundedSemaphore(4)
+_img_failed = {}
+_img_lock = threading.Lock()
+IMG_RETRY_AFTER = 300
+
+
+def _fetch_image(url, dest):
+    try:
+        r = _img_http.get(url, timeout=(3, 8))
+        if r.status_code == 200 and len(r.content) > 1000:
+            tmp = f"{dest}.{threading.get_ident()}.part"
+            with open(tmp, 'wb') as f:
+                f.write(r.content)
+            os.replace(tmp, dest)
+            return True
+    except (requests.RequestException, OSError):
+        pass
+    return False
+
+
 def remote_image(tmdb_path, size='w1280'):
     if not tmdb_path:
         return None
     name = hashlib.sha1(f"{size}{tmdb_path}".encode()).hexdigest() + '.jpg'
     dest = os.path.join(IMAGES_DIR, name)
-    if os.path.exists(dest) or download(f"{TMDB_IMG}{size}{tmdb_path}", dest):
+    if os.path.exists(dest):
         return dest
+    with _img_lock:
+        if time.time() - _img_failed.get(name, 0) < IMG_RETRY_AFTER:
+            return None
+    if not _img_slots.acquire(timeout=2):
+        return None
+    try:
+        if os.path.exists(dest) or _fetch_image(f"{TMDB_IMG}{size}{tmdb_path}", dest):
+            return dest
+    finally:
+        _img_slots.release()
+    with _img_lock:
+        _img_failed[name] = time.time()
     return None

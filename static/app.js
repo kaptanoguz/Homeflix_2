@@ -619,11 +619,17 @@ async function refresh() {
 const P = {
   open: false, kind: '', id: 0, info: null, mode: 'direct', offset: 0, audio: 0, subs: null, subDelay: 0, subIdx: -1,
   hideT: 0, lastSave: 0, raf: 0, next: null, upnextT: 0, upnextDismissed: false, speed: 1, fsFallback: false,
-  seekTarget: null, lastSubHTML: '',
+  seekTarget: null, lastSubHTML: '', retries: 0, loadSeq: 0,
 };
 const V = () => $('#video');
+// Apple's WebKit (every iOS browser, desktop Safari) can't play the progressive transcode stream: it gets HLS instead.
+const UA = navigator.userAgent;
+const APPLE = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+  (/Safari/.test(UA) && !/Chrome|Chromium|Android|Edg|OPR|Firefox/.test(UA));
+const HLS_CLIENT = Math.random().toString(36).slice(2) + Date.now().toString(36);
+const streamMode = () => APPLE ? 'hls' : 'stream';
 
-function pTime() { const v = V(); return P.mode === 'stream' ? P.offset + (v.currentTime || 0) : (v.currentTime || 0); }
+function pTime() { const v = V(); return P.mode !== 'direct' ? P.offset + (v.currentTime || 0) : (v.currentTime || 0); }
 function pDur() { const v = V(); return P.mode === 'direct' && isFinite(v.duration) && v.duration > 0 ? v.duration : (P.info?.duration || 0); }
 
 async function play(kind, id, opts = {}) {
@@ -637,7 +643,7 @@ async function play(kind, id, opts = {}) {
     savePosition(true);
     pl.classList.add('loading');
   }
-  Object.assign(P, { kind, id, info: null, subs: null, subIdx: -1, audio: 0, next: null, upnextDismissed: false, lastSubHTML: '' });
+  Object.assign(P, { kind, id, info: null, subs: null, subIdx: -1, audio: 0, next: null, upnextDismissed: false, lastSubHTML: '', retries: 0 });
   $('#p-subs').innerHTML = '';
   $('#upnext').classList.remove('open');
   $('#p-panel').classList.remove('open');
@@ -653,7 +659,7 @@ async function play(kind, id, opts = {}) {
   $('#p-next').hidden = !P.next;
   document.title = `${info.title} · Homeflix`;
   const start = opts.from !== undefined ? +opts.from : (info.resume > 30 ? info.resume : 0);
-  P.mode = info.direct ? 'direct' : 'stream';
+  P.mode = info.direct ? 'direct' : streamMode();
   loadSource(start);
   if (start > 30) toast(`Kaldığın yerden devam ediliyor · ${fmtTime(start)}`);
   autoSubtitles();
@@ -669,6 +675,18 @@ function loadSource(t) {
   pl.classList.add('loading');
   t = Math.max(0, t || 0);
   const base = `/play/${P.kind}/${P.id}`;
+  const seq = ++P.loadSeq;
+  if (P.mode === 'hls') {
+    P.offset = t;
+    api.get(`/api/hls/${P.kind}/${P.id}?a=${P.audio}&t=${t.toFixed(1)}&c=${HLS_CLIENT}`).then(r => {
+      if (seq !== P.loadSeq || !P.open) return;
+      v.src = r.url;
+      P.hlsUrl = r.url;
+      v.playbackRate = P.speed;
+      v.play().catch(() => {});
+    }).catch(() => { if (seq === P.loadSeq && P.open) playbackFailed(t, 'hls-start'); });
+    return;
+  }
   if (P.mode === 'stream') {
     P.offset = t;
     v.src = `${base}?mode=stream&a=${P.audio}${t ? '&t=' + t.toFixed(1) : ''}`;
@@ -681,13 +699,28 @@ function loadSource(t) {
   v.play().catch(() => {});
 }
 
+// Reports the failure to the server log, then falls back from direct play or retries the stream a few times
+// (Wi-Fi hiccups) before telling the user.
+function playbackFailed(t, code) {
+  api.post('/api/client_error', { item: `${P.kind}:${P.id}`, mode: P.mode, code, t, retry: P.retries }).catch(() => {});
+  if (P.mode === 'direct') { P.mode = streamMode(); return loadSource(t); }
+  if (P.retries < 3) {
+    const seq = P.loadSeq;
+    P.retries++;
+    return setTimeout(() => { if (P.open && seq === P.loadSeq) loadSource(t); }, 700 * P.retries);
+  }
+  $('#player').classList.remove('loading');
+  toast('Video oynatılamadı. Dosya bozuk ya da desteklenmiyor olabilir.', 4000);
+}
+
 function seek(t) {
   const v = V();
   t = clamp(t, 0, Math.max(0, pDur() - 1));
   if (P.mode === 'direct') { v.currentTime = t; return; }
   const rel = t - P.offset;
-  for (let i = 0; i < v.buffered.length; i++) {
-    if (rel >= v.buffered.start(i) && rel <= v.buffered.end(i) - 0.5) { v.currentTime = rel; return; }
+  const ranges = P.mode === 'hls' ? v.seekable : v.buffered;
+  for (let i = 0; i < ranges.length; i++) {
+    if (rel >= ranges.start(i) && rel <= ranges.end(i) - 0.5) { v.currentTime = rel; return; }
   }
   loadSource(t);
 }
@@ -756,6 +789,9 @@ function closePlayerNow() {
   v.removeAttribute('src');
   v.load();
   P.open = false;
+  P.loadSeq++;
+  if (P.mode === 'hls' && P.hlsUrl) fetch(`/api/hls/stop?c=${HLS_CLIENT}&s=${P.hlsUrl.split('/')[2]}`, { method: 'POST', keepalive: true }).catch(() => {});
+  P.hlsUrl = '';
   cancelAnimationFrame(P.raf);
   clearTimeout(P.upnextT);
   $('#player').classList.remove('open', 'ui', 'idle', 'loading');
@@ -974,7 +1010,7 @@ async function playerAction(a, el) {
       if (i === P.audio) return;
       const t = pTime();
       P.audio = i;
-      P.mode = (P.info.direct && i === 0) ? 'direct' : 'stream';
+      P.mode = (P.info.direct && i === 0) ? 'direct' : streamMode();
       loadSource(t);
       return renderPanel();
     }
@@ -1008,18 +1044,19 @@ function wirePlayer() {
   v.addEventListener('waiting', () => pl.classList.add('loading'));
   v.addEventListener('seeking', () => pl.classList.add('loading'));
   ['playing', 'canplay', 'seeked'].forEach(e => v.addEventListener(e, () => pl.classList.remove('loading')));
+  v.addEventListener('playing', () => { P.retries = 0; });
   v.addEventListener('play', () => { $('#p-playicon').setAttribute('href', '#i-pause'); showUI(); });
   v.addEventListener('pause', () => { $('#p-playicon').setAttribute('href', '#i-play'); showUI(); savePosition(); });
   v.addEventListener('ended', () => {
     savePosition();
     if (P.next && !P.upnextDismissed) playNext();
-    else if (P.mode === 'stream' && pDur() - pTime() > 20) loadSource(pTime());
+    else if (P.mode !== 'direct' && pDur() - pTime() > 20) loadSource(pTime());
     else { pl.classList.add('ui'); api.post('/api/progress', { key: `${P.kind}:${P.id}`, position: pDur(), duration: pDur() }).catch(() => {}); }
   });
   v.addEventListener('error', () => {
     if (!P.open || !v.getAttribute('src')) return;
-    if (P.mode === 'direct') { P.mode = 'stream'; loadSource(pTime()); }
-    else { pl.classList.remove('loading'); toast('Video oynatılamadı. Dosya bozuk ya da desteklenmiyor olabilir.', 4000); }
+    const e = v.error;
+    playbackFailed(pTime(), e ? `${e.code} ${e.message || ''}` : '?');
   });
   $('#p-volume').addEventListener('input', e => { v.volume = +e.target.value; v.muted = v.volume === 0; updateVolIcon(); });
 

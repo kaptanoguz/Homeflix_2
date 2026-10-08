@@ -149,7 +149,8 @@ def omdb_lookup(title, year='', imdb_id=''):
 
 
 def _ensure_poster(c, table, kind, row, tmdb_poster):
-    if poster_file(row['poster']) or not tmdb_poster:
+    current = poster_file(row['poster'])
+    if (current and not library.is_tiny(current)) or not tmdb_poster:
         return
     dest = os.path.join(POSTERS_DIR, f"poster_{kind}_{row['id']}.jpg")
     if download(f"{TMDB_IMG}w780{tmdb_poster}", dest):

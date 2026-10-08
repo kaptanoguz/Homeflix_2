@@ -83,7 +83,7 @@ function buildLibrary(lib) {
       ...p, kind: 'm', key: 'm:' + p.id, versions: vs,
       add: Math.max(...vs.map(v => v.add || 0)),
       r: p.r || vs.find(v => v.r)?.r || '', g: p.g || vs.find(v => v.g)?.g || '',
-      p: p.p || vs.find(v => v.p)?.p || '', bd: vs.some(v => v.bd), c: vs.find(v => v.c)?.c || null, k: vs.some(v => v.k),
+      p: p.p || vs.find(v => v.p)?.p || '', bd: vs.some(v => v.bd), c: vs.find(v => v.c)?.c || null, k: Math.max(...vs.map(v => +v.k || 0)),
     };
     t.bdId = (vs.find(v => v.bd) || p).id;
     t.search = fold([t.t, t.ot, t.g, t.y, t.p].join(' '));
@@ -332,10 +332,11 @@ function renderCollections() {
 }
 
 /* ---------------------------------------------------------------- kids zone */
-// Titles flagged by the server (animation / family with a G/PG-level age rating).
+// Titles flagged by the server (animation / family rated G/PG, PG/PG-13 comedies and hand-picked titles).
 const KIDS_EMOJI = ['🎈', '⭐', '🚀', '🦄', '🐼', '🌈', '🍭', '🦖', '🎠', '🐠', '🪁', '🌟', '🐣', '🍦'];
 function renderKids() {
-  const movies = S.titles.filter(t => t.k), series = S.series.filter(s => s.k);
+  const movies = S.titles.filter(t => t.k);
+  const series = S.series.filter(s => s.k);
   const r = x => parseFloat(x.r) || 0;
   const kidKeys = new Set(movies.map(t => t.key));
   const cols = S.cols.filter(c => c.titles.length > 1 && c.titles.every(t => kidKeys.has(t.key)));
@@ -351,7 +352,10 @@ function renderKids() {
   html += row('🎨 Animasyon Filmleri', shuffle(movies.filter(t => genresOf(t).includes('Animasyon')), daySeed));
   html += row('📺 Çizgi Diziler', series);
   html += row('🧸 Film Serileri', cols, { kind: 'col' });
-  html += row('👨‍👩‍👧 Aile Filmleri', shuffle(movies.filter(t => !genresOf(t).includes('Animasyon')), daySeed + 1));
+  const live = movies.filter(t => !genresOf(t).includes('Animasyon'));
+  html += row('✨ Macera ve Fantastik', shuffle(live.filter(t => ['Macera', 'Fantastik', 'Bilim-Kurgu'].some(g => genresOf(t).includes(g))), daySeed + 3));
+  html += row('👨‍👩‍👧 Aile Filmleri', shuffle(live.filter(t => genresOf(t).includes('Aile')), daySeed + 1));
+  html += row('😂 Komediler', shuffle(live.filter(t => genresOf(t).includes('Komedi')), daySeed + 2));
   html += row('🆕 Yeni Gelenler', [...movies].sort((a, b) => b.add - a.add).slice(0, 20));
   if (!movies.length && !series.length) html += emptyState('Henüz çocuk filmi yok', 'Animasyon ve aile filmleri eklendikçe burada görünecek.');
   $('#view').innerHTML = html + '</div></div>';

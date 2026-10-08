@@ -57,17 +57,44 @@ KIDS_GENRES = ('Animasyon', 'Aile', 'Çocuk')
 NOT_KIDS_GENRES = ('Korku', 'Suç', 'Savaş', 'Gerilim')
 KIDS_RATINGS = {'US': {'G', 'PG', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG'},
                 'TR': {'G', '0+', '6+', '7+', '6A', '7A'}}
+TEEN_RATINGS = {'US': {'G', 'PG', 'PG-13', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14'},
+                'TR': {'G', '0+', '6+', '7+', '6A', '7A', '10+', '10A', '13+', '13A'}}
+# Hand-picked additions / removals (TMDb ids), editable in the config table as JSON lists.
+KIDS_INCLUDE_DEFAULT = [671, 672, 673, 674, 675, 767, 12444, 12445, 522402]   # Harry Potter 1-8, Finch
 
 
-def is_kids(genre, cert):
-    """Kids Zone: animation/family titles with a G/PG-level age rating (or, without a rating, tagged Family)."""
+def _rating_in(cert, table):
+    country, _, rating = (cert or '').partition(':')
+    return rating in table.get(country, ()) or (country == 'TR' and rating.lower().startswith('genel'))
+
+
+def is_kids(genre, cert, tmdb_id=0, include=(), exclude=()):
+    """Kids Zone: 1 for animation/family rated G/PG (or unrated Family), 2 for PG/PG-13 comedies and hand-picked
+    titles (ages up to ~13), 0 otherwise. Horror/crime/war/thriller never qualify. The page shows 1 and 2 together."""
     genre = genre or ''
-    if not any(g in genre for g in KIDS_GENRES) or any(g in genre for g in NOT_KIDS_GENRES):
-        return False
-    if cert:
-        country, _, rating = cert.partition(':')
-        return rating in KIDS_RATINGS.get(country, ()) or (country == 'TR' and rating.lower().startswith('genel'))
-    return 'Aile' in genre
+    if tmdb_id and tmdb_id in exclude:
+        return 0
+    if tmdb_id and tmdb_id in include:
+        return 1 if _rating_in(cert, KIDS_RATINGS) else 2
+    if any(g in genre for g in NOT_KIDS_GENRES):
+        return 0
+    if any(g in genre for g in KIDS_GENRES) and (_rating_in(cert, KIDS_RATINGS) if cert else 'Aile' in genre):
+        return 1
+    if 'Komedi' in genre and cert and _rating_in(cert, TEEN_RATINGS):
+        return 2
+    return 0
+
+
+def kids_lists():
+    import json
+    with session() as c:
+        conf = {r['key']: r['value'] for r in c.execute("SELECT key, value FROM config WHERE key IN ('kids_include', 'kids_exclude')")}
+    try:
+        include = set(json.loads(conf['kids_include'])) if 'kids_include' in conf else set(KIDS_INCLUDE_DEFAULT)
+        exclude = set(json.loads(conf.get('kids_exclude', '[]')))
+    except ValueError:
+        include, exclude = set(KIDS_INCLUDE_DEFAULT), set()
+    return include, exclude
 
 
 def build_library():
@@ -80,6 +107,7 @@ def build_library():
         for e in c.execute("SELECT series_id, season, episode FROM episodes"):
             ep_keys[e['series_id']].add((e['season'], e['episode']))
         cols = {r['id']: r for r in c.execute("SELECT * FROM collections")}
+    kids_in, kids_out = kids_lists()
 
     out_movies = []
     by_col = defaultdict(list)
@@ -89,7 +117,7 @@ def build_library():
                 'r': m['rating'] if m['rating'] not in (None, '', 'N/A') else '', 'g': m['genre'] or '',
                 'p': m['plot'] or '', 'rt': m['runtime'] or 0, 'add': m['added_at'] or 0, 'sz': m['size'] or 0,
                 'tm': m['tmdb_id'] or 0, 'ph': _pv(m['poster']), 'bd': bool(m['backdrop']), 'c': None,
-                'k': is_kids(m['genre'], m['cert'])}
+                'k': is_kids(m['genre'], m['cert'], m['tmdb_id'], kids_in, kids_out)}
         out_movies.append(item)
         if m['collection_id'] and m['collection_id'] in cols:
             by_col[m['collection_id']].append(item)
@@ -144,7 +172,7 @@ def build_library():
             'r': s['rating'] if s['rating'] not in (None, '', 'N/A') else '', 'g': s['genre'] or '', 'p': s['plot'] or '',
             'add': max(g['added_at'] or 0 for g in group), 'tm': s['tmdb_id'] or 0,
             'ph': _pv(s['poster']), 'bd': bool(s['backdrop']),
-            'eps': len(keys), 'seasons': len({k[0] for k in keys}), 'k': is_kids(s['genre'], s['cert'])})
+            'eps': len(keys), 'seasons': len({k[0] for k in keys}), 'k': is_kids(s['genre'], s['cert'], 0, (), ())})
     return {'movies': out_movies, 'series': out_series, 'collections': collections,
             'version': state.snapshot()['version']}
 

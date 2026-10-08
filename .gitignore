@@ -31,3 +31,6 @@ Thumbs.db
 # Large packages
 windows_build_package/
 windows_build_package.zip
+
+# API keys (see secrets.example.json)
+secrets.json

@@ -2,7 +2,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 
-from .config import DB_FILE, DEFAULT_MOVIE_DIRS, DEFAULT_SERIES_DIRS
+from .config import DB_FILE, DEFAULT_MOVIE_DIRS, DEFAULT_SERIES_DIRS, OMDB_KEYS
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT);
@@ -96,7 +96,7 @@ def load_settings():
         conf = {r["key"]: r["value"] for r in c.execute("SELECT key, value FROM config")}
     conf.setdefault("movie_dir", _first_existing(DEFAULT_MOVIE_DIRS))
     conf.setdefault("series_dir", _first_existing(DEFAULT_SERIES_DIRS))
-    conf.setdefault("omdb_api_key", "4255837a")
+    conf.setdefault("omdb_api_key", OMDB_KEYS[0] if OMDB_KEYS else "")
     return conf
 
 

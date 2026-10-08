@@ -38,9 +38,10 @@ CREATE INDEX IF NOT EXISTS idx_episodes_series ON episodes(series_id, season, ep
 EXTRA_COLUMNS = {
     "movies": {"meta_tries": "INTEGER DEFAULT 0", "original_title": "TEXT", "tmdb_id": "INTEGER",
                "imdb_id": "TEXT", "collection_id": "INTEGER", "runtime": "INTEGER", "backdrop": "TEXT",
-               "added_at": "REAL", "size": "INTEGER", "enriched": "INTEGER DEFAULT 0"},
+               "added_at": "REAL", "size": "INTEGER", "enriched": "INTEGER DEFAULT 0", "cert": "TEXT"},
     "series": {"meta_tries": "INTEGER DEFAULT 0", "original_title": "TEXT", "tmdb_id": "INTEGER",
-               "backdrop": "TEXT", "added_at": "REAL", "enriched": "INTEGER DEFAULT 0", "display_title": "TEXT"},
+               "backdrop": "TEXT", "added_at": "REAL", "enriched": "INTEGER DEFAULT 0", "display_title": "TEXT",
+               "cert": "TEXT"},
     "episodes": {"ep_name": "TEXT", "ep_overview": "TEXT", "still": "TEXT", "runtime": "INTEGER"},
 }
 

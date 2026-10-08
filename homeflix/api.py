@@ -53,10 +53,27 @@ def _num(v):
 
 # ---------------------------------------------------------------- library
 
+KIDS_GENRES = ('Animasyon', 'Aile', 'Çocuk')
+NOT_KIDS_GENRES = ('Korku', 'Suç', 'Savaş', 'Gerilim')
+KIDS_RATINGS = {'US': {'G', 'PG', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG'},
+                'TR': {'G', '0+', '6+', '7+', '6A', '7A'}}
+
+
+def is_kids(genre, cert):
+    """Kids Zone: animation/family titles with a G/PG-level age rating (or, without a rating, tagged Family)."""
+    genre = genre or ''
+    if not any(g in genre for g in KIDS_GENRES) or any(g in genre for g in NOT_KIDS_GENRES):
+        return False
+    if cert:
+        country, _, rating = cert.partition(':')
+        return rating in KIDS_RATINGS.get(country, ()) or (country == 'TR' and rating.lower().startswith('genel'))
+    return 'Aile' in genre
+
+
 def build_library():
     with session() as c:
         movies = c.execute("SELECT id, title, original_title, year, rating, genre, plot, runtime, added_at, size, "
-                           "tmdb_id, collection_id, poster, backdrop FROM movies").fetchall()
+                           "tmdb_id, collection_id, poster, backdrop, cert FROM movies").fetchall()
         shows = c.execute("SELECT s.*, COUNT(e.id) AS eps FROM series s LEFT JOIN episodes e ON e.series_id = s.id "
                           "GROUP BY s.id").fetchall()
         ep_keys = defaultdict(set)
@@ -71,7 +88,8 @@ def build_library():
         item = {'id': m['id'], 't': m['title'], 'ot': m['original_title'] or '', 'y': m['year'] or '',
                 'r': m['rating'] if m['rating'] not in (None, '', 'N/A') else '', 'g': m['genre'] or '',
                 'p': m['plot'] or '', 'rt': m['runtime'] or 0, 'add': m['added_at'] or 0, 'sz': m['size'] or 0,
-                'tm': m['tmdb_id'] or 0, 'ph': _pv(m['poster']), 'bd': bool(m['backdrop']), 'c': None}
+                'tm': m['tmdb_id'] or 0, 'ph': _pv(m['poster']), 'bd': bool(m['backdrop']), 'c': None,
+                'k': is_kids(m['genre'], m['cert'])}
         out_movies.append(item)
         if m['collection_id'] and m['collection_id'] in cols:
             by_col[m['collection_id']].append(item)
@@ -126,7 +144,7 @@ def build_library():
             'r': s['rating'] if s['rating'] not in (None, '', 'N/A') else '', 'g': s['genre'] or '', 'p': s['plot'] or '',
             'add': max(g['added_at'] or 0 for g in group), 'tm': s['tmdb_id'] or 0,
             'ph': _pv(s['poster']), 'bd': bool(s['backdrop']),
-            'eps': len(keys), 'seasons': len({k[0] for k in keys})})
+            'eps': len(keys), 'seasons': len({k[0] for k in keys}), 'k': is_kids(s['genre'], s['cert'])})
     return {'movies': out_movies, 'series': out_series, 'collections': collections,
             'version': state.snapshot()['version']}
 

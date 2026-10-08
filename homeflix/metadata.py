@@ -60,6 +60,24 @@ def download(url, dest):
     return False
 
 
+def movie_cert(d):
+    """'US:PG' / 'TR:7+' from a /movie response with release_dates appended; '' when TMDb has no rating."""
+    by_country = {r.get('iso_3166_1'): [x.get('certification') for x in r.get('release_dates') or [] if x.get('certification')]
+                  for r in (d.get('release_dates') or {}).get('results') or []}
+    for country in ('US', 'TR'):
+        if by_country.get(country):
+            return f"{country}:{by_country[country][0]}"
+    return ''
+
+
+def tv_cert(d):
+    by_country = {r.get('iso_3166_1'): r.get('rating') for r in (d.get('content_ratings') or {}).get('results') or [] if r.get('rating')}
+    for country in ('US', 'TR'):
+        if by_country.get(country):
+            return f"{country}:{by_country[country]}"
+    return ''
+
+
 def translate_genres(genre):
     if not genre:
         return genre
@@ -205,8 +223,8 @@ def enrich_movie(row):
             c.execute(f"UPDATE movies SET {', '.join(k + ' = ?' for k in fields)} WHERE id = ?",
                       list(fields.values()) + [row['id']])
             return
-        d = tmdb(f"/movie/{tmdb_id}") or {}
-        fields = {'tmdb_id': tmdb_id, 'enriched': 1}
+        d = tmdb(f"/movie/{tmdb_id}", append_to_response='release_dates') or {}
+        fields = {'tmdb_id': tmdb_id, 'enriched': 1, 'cert': movie_cert(d)}
         if d.get('runtime'):
             fields['runtime'] = d['runtime']
         if d.get('imdb_id') and not row['imdb_id']:
@@ -256,8 +274,8 @@ def enrich_series(row):
             tries = (row['meta_tries'] or 0) + 1
             c.execute("UPDATE series SET meta_tries = ?, enriched = ? WHERE id = ?", (tries, 2 if tries >= 3 else 0, row['id']))
             return
-        d = tmdb(f"/tv/{tmdb_id}") or {}
-        fields = {'tmdb_id': tmdb_id, 'enriched': 1}
+        d = tmdb(f"/tv/{tmdb_id}", append_to_response='content_ratings') or {}
+        fields = {'tmdb_id': tmdb_id, 'enriched': 1, 'cert': tv_cert(d)}
         if d.get('backdrop_path'):
             fields['backdrop'] = d['backdrop_path']
         if d.get('original_name'):

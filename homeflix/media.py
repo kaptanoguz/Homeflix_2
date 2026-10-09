@@ -275,11 +275,16 @@ def _fetch_image(url, dest):
     return False
 
 
+def image_path(tmdb_path, size):
+    """Where remote_image keeps its copy of a TMDb image."""
+    return os.path.join(IMAGES_DIR, hashlib.sha1(f"{size}{tmdb_path}".encode()).hexdigest() + '.jpg')
+
+
 def remote_image(tmdb_path, size='w1280'):
     if not tmdb_path:
         return None
-    name = hashlib.sha1(f"{size}{tmdb_path}".encode()).hexdigest() + '.jpg'
-    dest = os.path.join(IMAGES_DIR, name)
+    dest = image_path(tmdb_path, size)
+    name = os.path.basename(dest)
     if os.path.exists(dest):
         return dest
     with _img_lock:

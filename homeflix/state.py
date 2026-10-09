@@ -4,6 +4,8 @@ _lock = threading.Lock()
 _tasks = {}
 enrich = {'done': 0, 'total': 0}
 enrich_wake = threading.Event()
+credits = {'done': 0, 'total': 0}
+credits_wake = threading.Event()
 library_version = [0]
 
 
@@ -33,6 +35,8 @@ def snapshot():
     busy_enrich = enrich['total'] > 0 and enrich['done'] < enrich['total']
     if busy_enrich:
         tasks.append(f"Bilgiler zenginleştiriliyor {enrich['done']}/{enrich['total']}")
+    if credits['total'] > 0 and credits['done'] < credits['total']:
+        tasks.append(f"Oyuncu bilgileri indiriliyor {credits['done']}/{credits['total']}")
     return {
         'busy': bool(tasks),
         'tasks': tasks,

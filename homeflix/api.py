@@ -1,15 +1,16 @@
 import gzip
 import os
+import secrets
 import subprocess
 import threading
 import time
 from collections import defaultdict
 
-from flask import Flask, abort, jsonify, render_template, request, send_file
+from flask import Flask, abort, g, jsonify, render_template, request, send_file
 
 from . import library, media, metadata, state, subtitles
 from .config import BASE_DIR, POSTERS_DIR
-from .db import load_settings, save_settings, session
+from .db import LOCAL_VIEWER, load_settings, save_settings, session
 from .names import fold, sequel_key
 
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'),
@@ -18,9 +19,32 @@ settings = load_settings()
 library.settings_ref = settings
 
 
+VIEWER_COOKIE = 'hf_viewer'
+
+
+def viewer():
+    """Whose watch history this request reads and writes: the server computer, or the device's own cookie id."""
+    if 'viewer' not in g:
+        if is_local_request():
+            g.viewer = LOCAL_VIEWER
+        else:
+            vid = request.cookies.get(VIEWER_COOKIE, '')
+            if len(vid) != 32 or not all(ch in '0123456789abcdef' for ch in vid):
+                vid = g.new_viewer = secrets.token_hex(16)
+            g.viewer = vid
+    return g.viewer
+
+
+@app.before_request
+def identify():
+    viewer()
+
+
 @app.after_request
 def finish(response):
     p = request.path
+    if 'new_viewer' in g:
+        response.set_cookie(VIEWER_COOKIE, g.new_viewer, max_age=10 * 365 * 86400, samesite='Lax', httponly=True)
     if p == '/' or p.startswith('/api/'):
         response.headers['Cache-Control'] = 'no-store'
     elif p.startswith('/img/') and response.status_code == 200:
@@ -53,16 +77,67 @@ def _num(v):
 
 # ---------------------------------------------------------------- library
 
+KIDS_GENRES = ('Animasyon', 'Aile', 'Çocuk')
+NOT_KIDS_GENRES = ('Korku', 'Suç', 'Savaş', 'Gerilim')
+KIDS_RATINGS = {'US': {'G', 'PG', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG'},
+                'TR': {'G', '0+', '6+', '7+', '6A', '7A'}}
+TEEN_RATINGS = {'US': {'G', 'PG', 'PG-13', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14'},
+                'TR': {'G', '0+', '6+', '7+', '6A', '7A', '10+', '10A', '13+', '13A'}}
+# Hand-picked additions / removals (TMDb ids), editable in the config table as JSON lists.
+KIDS_INCLUDE_DEFAULT = [671, 672, 673, 674, 675, 767, 12444, 12445, 522402]   # Harry Potter 1-8, Finch
+KIDS_EXCLUDE_SERIES_DEFAULT = [228853, 122186]                                # Prens, Doğu
+
+
+def _rating_in(cert, table):
+    country, _, rating = (cert or '').partition(':')
+    return rating in table.get(country, ()) or (country == 'TR' and rating.lower().startswith('genel'))
+
+
+def is_kids(genre, cert, tmdb_id=0, include=(), exclude=()):
+    """Kids Zone: 1 for animation/family rated G/PG (or unrated Family), 2 for PG/PG-13 comedies and hand-picked
+    titles (ages up to ~13), 0 otherwise. Horror/crime/war/thriller never qualify. The page shows 1 and 2 together."""
+    genre = genre or ''
+    if tmdb_id and tmdb_id in exclude:
+        return 0
+    if tmdb_id and tmdb_id in include:
+        return 1 if _rating_in(cert, KIDS_RATINGS) else 2
+    if any(g in genre for g in NOT_KIDS_GENRES):
+        return 0
+    if any(g in genre for g in KIDS_GENRES) and (_rating_in(cert, KIDS_RATINGS) if cert else 'Aile' in genre):
+        return 1
+    if 'Komedi' in genre and 'Romantik' not in genre and cert and _rating_in(cert, TEEN_RATINGS):
+        return 2
+    return 0
+
+
+def kids_lists():
+    """(movie include, movie exclude, series include, series exclude) TMDb id sets; movie and TV ids are separate."""
+    import json
+    defaults = {'kids_include': KIDS_INCLUDE_DEFAULT, 'kids_exclude': [], 'kids_include_series': [],
+                'kids_exclude_series': KIDS_EXCLUDE_SERIES_DEFAULT}
+    with session() as c:
+        conf = {r['key']: r['value'] for r in c.execute(
+            f"SELECT key, value FROM config WHERE key IN ({','.join('?' * len(defaults))})", list(defaults))}
+    out = []
+    for key, default in defaults.items():
+        try:
+            out.append(set(json.loads(conf[key])) if key in conf else set(default))
+        except ValueError:
+            out.append(set(default))
+    return tuple(out)
+
+
 def build_library():
     with session() as c:
         movies = c.execute("SELECT id, title, original_title, year, rating, genre, plot, runtime, added_at, size, "
-                           "tmdb_id, collection_id, poster, backdrop FROM movies").fetchall()
+                           "tmdb_id, collection_id, poster, backdrop, cert FROM movies").fetchall()
         shows = c.execute("SELECT s.*, COUNT(e.id) AS eps FROM series s LEFT JOIN episodes e ON e.series_id = s.id "
                           "GROUP BY s.id").fetchall()
         ep_keys = defaultdict(set)
         for e in c.execute("SELECT series_id, season, episode FROM episodes"):
             ep_keys[e['series_id']].add((e['season'], e['episode']))
         cols = {r['id']: r for r in c.execute("SELECT * FROM collections")}
+    kids_in, kids_out, kids_in_tv, kids_out_tv = kids_lists()
 
     out_movies = []
     by_col = defaultdict(list)
@@ -71,7 +146,8 @@ def build_library():
         item = {'id': m['id'], 't': m['title'], 'ot': m['original_title'] or '', 'y': m['year'] or '',
                 'r': m['rating'] if m['rating'] not in (None, '', 'N/A') else '', 'g': m['genre'] or '',
                 'p': m['plot'] or '', 'rt': m['runtime'] or 0, 'add': m['added_at'] or 0, 'sz': m['size'] or 0,
-                'tm': m['tmdb_id'] or 0, 'ph': _pv(m['poster']), 'bd': bool(m['backdrop']), 'c': None}
+                'tm': m['tmdb_id'] or 0, 'ph': _pv(m['poster']), 'bd': bool(m['backdrop']), 'c': None,
+                'k': is_kids(m['genre'], m['cert'], m['tmdb_id'], kids_in, kids_out)}
         out_movies.append(item)
         if m['collection_id'] and m['collection_id'] in cols:
             by_col[m['collection_id']].append(item)
@@ -126,7 +202,7 @@ def build_library():
             'r': s['rating'] if s['rating'] not in (None, '', 'N/A') else '', 'g': s['genre'] or '', 'p': s['plot'] or '',
             'add': max(g['added_at'] or 0 for g in group), 'tm': s['tmdb_id'] or 0,
             'ph': _pv(s['poster']), 'bd': bool(s['backdrop']),
-            'eps': len(keys), 'seasons': len({k[0] for k in keys})})
+            'eps': len(keys), 'seasons': len({k[0] for k in keys}), 'k': is_kids(s['genre'], s['cert'], s['tmdb_id'], kids_in_tv, kids_out_tv)})
     return {'movies': out_movies, 'series': out_series, 'collections': collections,
             'version': state.snapshot()['version']}
 
@@ -166,7 +242,7 @@ def api_series(sid):
             seen.add((e['season'], e['episode'], e['filename']))
             eps.append(e)
         fetched = {r['season'] for r in c.execute("SELECT season FROM season_fetch WHERE series_id = ?", (sid,))}
-        prog = {r['key']: r for r in c.execute("SELECT * FROM progress WHERE key LIKE 'e:%'")}
+        prog = {r['key']: r for r in c.execute("SELECT * FROM progress WHERE viewer = ? AND key LIKE 'e:%'", (viewer(),))}
     seasons = defaultdict(list)
     for e in eps:
         p = prog.get(f"e:{e['id']}")
@@ -199,24 +275,19 @@ def next_episode(c, e):
                      f"ORDER BY season, episode, id LIMIT 1", (*ids, e['season'], e['season'], e['episode'])).fetchone()
 
 
-def _progress_map():
-    with session() as c:
-        return {r['key']: r for r in c.execute("SELECT * FROM progress")}
-
-
 @app.route('/api/user')
 def api_user():
     with session() as c:
         prog = {r['key']: [round(r['position'] or 0), round(r['duration'] or 0), r['finished'] or 0, r['updated_at'] or 0]
-                for r in c.execute("SELECT * FROM progress WHERE key LIKE 'm:%'")}
-        mylist = [r['key'] for r in c.execute("SELECT key FROM mylist ORDER BY added_at DESC")]
+                for r in c.execute("SELECT * FROM progress WHERE viewer = ? AND key LIKE 'm:%'", (viewer(),))}
+        mylist = [r['key'] for r in c.execute("SELECT key FROM mylist WHERE viewer = ? ORDER BY added_at DESC", (viewer(),))]
     return jsonify({'progress': prog, 'mylist': mylist, 'continue': continue_watching()})
 
 
 def continue_watching():
     out = []
     with session() as c:
-        rows = c.execute("SELECT * FROM progress ORDER BY updated_at DESC LIMIT 60").fetchall()
+        rows = c.execute("SELECT * FROM progress WHERE viewer = ? ORDER BY updated_at DESC LIMIT 60", (viewer(),)).fetchall()
         seen_series = set()
         for r in rows:
             kind, _, sid = r['key'].partition(':')
@@ -265,15 +336,15 @@ def api_progress():
         abort(400)
     finished = 1 if dur > 0 and (pos >= dur * 0.93 or dur - pos < 90) else 0
     with session() as c:
-        c.execute("INSERT OR REPLACE INTO progress (key, position, duration, finished, updated_at) VALUES (?, ?, ?, ?, ?)",
-                  (key, 0 if finished else pos, dur, finished, time.time()))
+        c.execute("INSERT OR REPLACE INTO progress (viewer, key, position, duration, finished, updated_at) "
+                  "VALUES (?, ?, ?, ?, ?, ?)", (viewer(), key, 0 if finished else pos, dur, finished, time.time()))
     return jsonify({'ok': True, 'finished': bool(finished)})
 
 
 @app.route('/api/progress/<key>', methods=['DELETE'])
 def api_progress_delete(key):
     with session() as c:
-        c.execute("DELETE FROM progress WHERE key = ?", (key,))
+        c.execute("DELETE FROM progress WHERE viewer = ? AND key = ?", (viewer(), key))
     return jsonify({'ok': True})
 
 
@@ -285,9 +356,9 @@ def api_mylist():
         abort(400)
     with session() as c:
         if d.get('on'):
-            c.execute("INSERT OR IGNORE INTO mylist (key, added_at) VALUES (?, ?)", (key, time.time()))
+            c.execute("INSERT OR IGNORE INTO mylist (viewer, key, added_at) VALUES (?, ?, ?)", (viewer(), key, time.time()))
         else:
-            c.execute("DELETE FROM mylist WHERE key = ?", (key,))
+            c.execute("DELETE FROM mylist WHERE viewer = ? AND key = ?", (viewer(), key))
     return jsonify({'ok': True})
 
 
@@ -300,17 +371,17 @@ def api_migrate():
         for fav in d.get('favorites') or []:
             fav = str(fav)
             if fav.startswith('m_') and fav[2:].isdigit():
-                c.execute("INSERT OR IGNORE INTO mylist (key, added_at) VALUES (?, ?)", (f"m:{fav[2:]}", now))
+                c.execute("INSERT OR IGNORE INTO mylist (viewer, key, added_at) VALUES (?, ?, ?)", (viewer(), f"m:{fav[2:]}", now))
             elif fav.startswith('s_'):
                 r = c.execute("SELECT id FROM series WHERE title = ? OR CAST(id AS TEXT) = ?", (fav[2:], fav[2:])).fetchone()
                 if r:
-                    c.execute("INSERT OR IGNORE INTO mylist (key, added_at) VALUES (?, ?)", (f"s:{r['id']}", now))
+                    c.execute("INSERT OR IGNORE INTO mylist (viewer, key, added_at) VALUES (?, ?, ?)", (viewer(), f"s:{r['id']}", now))
         for vid, pos in (d.get('positions') or {}).items():
             if not str(vid).isdigit() or _num(pos) < 30:
                 continue
             kind = 'm' if c.execute("SELECT 1 FROM movies WHERE id = ?", (int(vid),)).fetchone() else 'e'
-            c.execute("INSERT OR IGNORE INTO progress (key, position, duration, finished, updated_at) VALUES (?, ?, 0, 0, ?)",
-                      (f"{kind}:{vid}", _num(pos), now))
+            c.execute("INSERT OR IGNORE INTO progress (viewer, key, position, duration, finished, updated_at) "
+                      "VALUES (?, ?, ?, 0, 0, ?)", (viewer(), f"{kind}:{vid}", _num(pos), now))
     return jsonify({'ok': True})
 
 
@@ -336,7 +407,7 @@ def api_media(kind, iid):
            'local_subs': [{'index': s['index'], 'label': s['label'], 'lang': s['lang']} for s in subtitles.local_subtitles(path)],
            'video': info['video'], 'file': os.path.basename(path), 'size': os.path.getsize(path)}
     with session() as c:
-        p = c.execute("SELECT * FROM progress WHERE key = ?", (f"{kind}:{iid}",)).fetchone()
+        p = c.execute("SELECT * FROM progress WHERE viewer = ? AND key = ?", (viewer(), f"{kind}:{iid}")).fetchone()
         out['resume'] = p['position'] if p and not p['finished'] else 0
         if kind == 'm':
             m = c.execute("SELECT title, year FROM movies WHERE id = ?", (iid,)).fetchone()
@@ -523,9 +594,18 @@ def lan_ips():
         return []
 
 
+def is_local_request():
+    """True only for requests from this computer (app window, 127.0.0.1 or its own LAN address)."""
+    addr = request.remote_addr or ''
+    return addr in ('127.0.0.1', '::1') or addr.startswith('127.') or addr in lan_ips()
+
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
+    local = is_local_request()
     if request.method == 'POST':
+        if not local:
+            abort(403)
         d = request.get_json(force=True, silent=True) or {}
         values = {k: str(v).strip() for k, v in d.items() if k in ('movie_dir', 'series_dir', 'omdb_api_key') and str(v).strip()}
         settings.update(values)
@@ -536,8 +616,9 @@ def api_settings():
                  'episodes': c.execute("SELECT COUNT(*) FROM episodes").fetchone()[0],
                  'collections': c.execute("SELECT COUNT(*) FROM collections").fetchone()[0]}
     from .config import PORT
-    return jsonify({**{k: settings.get(k, '') for k in ('movie_dir', 'series_dir', 'omdb_api_key')},
-                    'stats': stats, 'urls': [f"http://{ip}:{PORT}" for ip in lan_ips()]})
+    # Folder paths and the API key are only shown to (and editable from) this computer, not other devices on the LAN.
+    private = {k: settings.get(k, '') if local else '' for k in ('movie_dir', 'series_dir', 'omdb_api_key')}
+    return jsonify({**private, 'local': local, 'stats': stats, 'urls': [f"http://{ip}:{PORT}" for ip in lan_ips()]})
 
 
 @app.route('/api/scan', methods=['POST'])

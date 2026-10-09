@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS progress (
     PRIMARY KEY (viewer, key)
 );
 CREATE TABLE IF NOT EXISTS mylist (viewer TEXT NOT NULL, key TEXT NOT NULL, added_at REAL, PRIMARY KEY (viewer, key));
+CREATE TABLE IF NOT EXISTS credits (kind TEXT NOT NULL, tmdb_id INTEGER NOT NULL, data TEXT, fetched_at REAL,
+    PRIMARY KEY (kind, tmdb_id));
 CREATE TABLE IF NOT EXISTS season_fetch (series_id INTEGER, season INTEGER, fetched_at REAL,
     PRIMARY KEY (series_id, season));
 CREATE INDEX IF NOT EXISTS idx_episodes_series ON episodes(series_id, season, episode);

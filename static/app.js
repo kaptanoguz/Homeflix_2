@@ -666,7 +666,7 @@ async function refresh() {
 const P = {
   open: false, kind: '', id: 0, info: null, mode: 'direct', offset: 0, audio: 0, subs: null, subDelay: 0, subIdx: -1,
   hideT: 0, lastSave: 0, raf: 0, next: null, upnextT: 0, upnextDismissed: false, speed: 1, fsFallback: false,
-  seekTarget: null, lastSubHTML: '', retries: 0, loadSeq: 0,
+  seekTarget: null, lastSubHTML: '', retries: 0, loadSeq: 0, pauseT: 0, openAfter: null,
 };
 const V = () => $('#video');
 // Apple's WebKit (every iOS browser, desktop Safari) can't play the progressive transcode stream: it gets HLS instead.
@@ -690,7 +690,8 @@ async function play(kind, id, opts = {}) {
     savePosition(true);
     pl.classList.add('loading');
   }
-  Object.assign(P, { kind, id, info: null, subs: null, subIdx: -1, audio: 0, next: null, upnextDismissed: false, lastSubHTML: '', retries: 0 });
+  Object.assign(P, { kind, id, info: null, subs: null, subIdx: -1, audio: 0, next: null, upnextDismissed: false, lastSubHTML: '', retries: 0, openAfter: null });
+  hidePauseInfo();
   $('#p-subs').innerHTML = '';
   $('#upnext').classList.remove('open');
   $('#p-panel').classList.remove('open');
@@ -704,6 +705,7 @@ async function play(kind, id, opts = {}) {
   $('#p-title').textContent = info.title;
   $('#p-sub').textContent = info.sub || '';
   $('#p-next').hidden = !P.next;
+  loadCredits(playingItem());
   document.title = `${info.title} · Homeflix`;
   const start = opts.from !== undefined ? +opts.from : (info.resume > 30 ? info.resume : 0);
   P.mode = info.direct ? 'direct' : streamMode();
@@ -841,15 +843,19 @@ function closePlayerNow() {
   P.hlsUrl = '';
   cancelAnimationFrame(P.raf);
   clearTimeout(P.upnextT);
+  hidePauseInfo();
   $('#player').classList.remove('open', 'ui', 'idle', 'loading');
   $('#p-panel').classList.remove('open');
   $('#upnext').classList.remove('open');
   document.title = 'Homeflix';
   if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   if (P.fsFallback && window.pywebview?.api) { window.pywebview.api.toggle_fullscreen(); P.fsFallback = false; }
+  const openAfter = P.openAfter;
+  P.openAfter = null;
   setTimeout(async () => {
     await loadUser();
-    if (detailKey) { const it = S.byKey.get(detailKey); if (it && it.kind !== 'c') { renderDetail(it); if (it.kind === 's') loadEpisodes(it); } }
+    if (openAfter) openDetail(openAfter);
+    else if (detailKey) { const it = S.byKey.get(detailKey); if (it && it.kind !== 'c') { renderDetail(it); if (it.kind === 's') loadEpisodes(it); } }
     else softRender();
   }, 400);
 }
@@ -914,6 +920,87 @@ function showUpNext() {
   P.upnextT = setTimeout(step, 1000);
 }
 function dismissUpNext() { clearTimeout(P.upnextT); P.upnextDismissed = true; $('#upnext').classList.remove('open'); }
+
+/* ---------------- pause screen: what's playing, who's in it, what to watch next */
+const CREDITS = new Map();
+const regionName = (() => { try { const d = new Intl.DisplayNames(['tr'], { type: 'region' }); return c => d.of(c) || c; } catch { return c => c; } })();
+const playingItem = () => !P.info ? null : P.kind === 'm' ? S.movieToTitle.get(P.id) : S.byKey.get('s:' + P.info.sid);
+
+function loadCredits(it) {
+  if (!it || !it.tm) return Promise.resolve({});
+  if (!CREDITS.has(it.key)) CREDITS.set(it.key, api.get(`/api/credits/${it.kind}/${it.id}`).catch(() => { CREDITS.delete(it.key); return {}; }));
+  return CREDITS.get(it.key);
+}
+
+// Same kind of title from the library: TMDb's recommendations first, then the rest of the series and shared genres.
+// Things already watched to the end sink to the back.
+function similarTitles(it, rec = [], n = 14) {
+  const rank = new Map(rec.map((tm, i) => [tm, i]));
+  const genres = genresOf(it);
+  return (it.kind === 's' ? S.series : S.titles).filter(x => x !== it).map(x => {
+    let s = genresOf(x).filter(g => genres.includes(g)).length + (parseFloat(x.r) || 0) / 20;
+    if (x.tm && rank.has(x.tm)) s += 4 + (40 - rank.get(x.tm)) / 20;
+    if (it.c && x.c === it.c) s += 3;
+    if (x.kind === 'm' && movieProgress(x)?.[2]) s -= 3;
+    return { x, s };
+  }).filter(o => o.s >= 1).sort((a, b) => b.s - a.s).slice(0, n).map(o => o.x);
+}
+
+function pauseHTML(it, cr) {
+  const ep = P.kind === 'e' ? P.info.sub : '';
+  const date = cr.date ? new Date(cr.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const facts = [
+    [it.kind === 's' ? 'Yaratıcı' : 'Yönetmen', (cr.directors || []).join(', ')],
+    ['Senaryo', (cr.writers || []).join(', ')],
+    ['Ülke', (cr.countries || []).map(regionName).join(', ')],
+    [it.kind === 's' ? 'İlk yayın' : 'Vizyon', date],
+    ['Orijinal ad', it.ot && fold(it.ot) !== fold(it.t) ? it.ot : ''],
+  ].filter(f => f[1]).map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('');
+  const cast = (cr.cast || []).map(p => `<div class="pp-person">
+      <div class="pp-face">${icon('user')}${p.p ? `<img src="/img/person${esc(p.p)}" alt="" loading="lazy" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}</div>
+      <b>${esc(p.n)}</b>${p.c ? `<small>${esc(p.c)}</small>` : ''}</div>`).join('');
+  const castBlock = cast ? `<div class="pp-sec"><h4>Oyuncular</h4><div class="pp-row">${cast}</div></div>`
+    : it.tm && !cr.done ? '<div class="pp-sec"><h4>Oyuncular</h4><div class="spin"></div></div>' : '';
+  const similar = similarTitles(it, cr.rec).map(x => `<button class="pp-card" data-p="similar" data-key="${x.key}" title="${esc(x.t)}">
+      <div class="art">${artHTML(x, 185)}</div><b>${esc(x.t)}</b><small>${esc(x.y || '')}${x.r ? ` · ★ ${esc(x.r)}` : ''}</small></button>`).join('');
+  return `<div class="pp-inner">
+    <div class="pp-main">
+      ${it.ph ? `<img class="pp-poster" src="${img(it.kind, it.id, 'poster', 342)}" alt="">` : ''}
+      <div class="pp-info">
+        <small class="pp-kicker">İzliyorsun</small>
+        <h2>${esc(it.t)}</h2>
+        ${ep ? `<div class="pp-ep">${esc(ep)}</div>` : ''}
+        <div class="meta">${metaLine(it)}</div>
+        ${cr.tagline ? `<p class="pp-tagline">${esc(cr.tagline)}</p>` : ''}
+        ${it.p ? `<p class="pp-plot">${esc(it.p)}</p>` : ''}
+        ${facts ? `<div class="pp-facts">${facts}</div>` : ''}
+      </div>
+    </div>
+    ${castBlock}
+    ${similar ? `<div class="pp-sec"><h4>${it.kind === 's' ? 'Benzer Diziler' : 'Benzer Filmler'}</h4><div class="pp-row">${similar}</div></div>` : ''}
+  </div>`;
+}
+
+function showPauseInfo() {
+  const v = V(), pl = $('#player'), it = playingItem();
+  if (!P.open || !it || !v.paused) return;
+  if (pl.classList.contains('loading')) { P.pauseT = setTimeout(showPauseInfo, 500); return; }
+  const box = $('#p-pause'), key = `${P.kind}:${P.id}`;
+  pl.classList.add('paused-info');
+  if (box.dataset.for === key && box.dataset.full) return;
+  if (box.dataset.for !== key) { box.innerHTML = pauseHTML(it, {}); box.dataset.for = key; delete box.dataset.full; }
+  loadCredits(it).then(cr => {
+    if (box.dataset.for !== key) return;
+    const scroll = $('.pp-inner', box)?.scrollTop || 0;
+    box.innerHTML = pauseHTML(it, { ...cr, done: true });
+    box.dataset.full = '1';
+    $('.pp-inner', box).scrollTop = scroll;
+  });
+}
+function hidePauseInfo() {
+  clearTimeout(P.pauseT);
+  $('#player').classList.remove('paused-info');
+}
 
 /* ---------------- subtitles */
 function parseTime(s) {
@@ -1038,6 +1125,7 @@ async function playerAction(a, el) {
     case 'fullscreen': return toggleFullscreen();
     case 'next': return playNext();
     case 'dismiss-next': return dismissUpNext();
+    case 'similar': P.openAfter = el.dataset.key; return back();
     case 'speed': {
       const speeds = [1, 1.25, 1.5, 2, 0.75];
       P.speed = speeds[(speeds.indexOf(P.speed) + 1) % speeds.length];
@@ -1092,8 +1180,11 @@ function wirePlayer() {
   v.addEventListener('seeking', () => pl.classList.add('loading'));
   ['playing', 'canplay', 'seeked'].forEach(e => v.addEventListener(e, () => pl.classList.remove('loading')));
   v.addEventListener('playing', () => { P.retries = 0; });
-  v.addEventListener('play', () => { $('#p-playicon').setAttribute('href', '#i-pause'); showUI(); });
-  v.addEventListener('pause', () => { $('#p-playicon').setAttribute('href', '#i-play'); showUI(); savePosition(); });
+  v.addEventListener('play', () => { $('#p-playicon').setAttribute('href', '#i-pause'); hidePauseInfo(); showUI(); });
+  v.addEventListener('pause', () => {
+    $('#p-playicon').setAttribute('href', '#i-play'); showUI(); savePosition();
+    clearTimeout(P.pauseT); P.pauseT = setTimeout(showPauseInfo, 900);
+  });
   v.addEventListener('ended', () => {
     savePosition();
     if (P.next && !P.upnextDismissed) playNext();
@@ -1111,12 +1202,12 @@ function wirePlayer() {
   pl.addEventListener('click', e => {
     const b = e.target.closest('[data-p]');
     if (b) { e.stopPropagation(); return playerAction(b.dataset.p, b); }
-    if (e.target.closest('.p-panel, .upnext, .p-bottom, .p-top')) return;
+    if (e.target.closest('.p-panel, .upnext, .p-bottom, .p-top, .pp-main, .pp-sec')) return;
     if ($('#p-panel').classList.contains('open')) { $('#p-panel').classList.remove('open'); return; }
     if (matchMedia('(hover: none)').matches && !pl.classList.contains('ui')) return showUI();
     togglePlay();
   });
-  pl.addEventListener('dblclick', e => { if (!e.target.closest('.p-bottom, .p-top, .p-panel, .upnext')) toggleFullscreen(); });
+  pl.addEventListener('dblclick', e => { if (!e.target.closest('.p-bottom, .p-top, .p-panel, .upnext, .p-pause')) toggleFullscreen(); });
 
   const posFromEvent = e => { const r = $('.p-track', bar).getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1); };
   const tip = $('#p-tip');

@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import re
@@ -19,6 +20,9 @@ http = requests.Session()
 http.mount("https://", HTTPAdapter(max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])))
 http.mount("http://", HTTPAdapter(max_retries=Retry(total=2, backoff_factor=1)))
 http.headers.update({'User-Agent': USER_AGENT})
+# For lookups made while a request waits (the pause screen): no retries, short timeouts.
+quick_http = requests.Session()
+quick_http.headers.update({'User-Agent': USER_AGENT})
 
 GENRE_TR = {
     'action': 'Aksiyon', 'adventure': 'Macera', 'animation': 'Animasyon', 'comedy': 'Komedi', 'crime': 'Suç',
@@ -33,10 +37,11 @@ class NetworkError(Exception):
     pass
 
 
-def tmdb(path, **params):
+def tmdb(path, quick=False, **params):
     params = {'api_key': TMDB_KEY, 'language': 'tr-TR', **params}
     try:
-        r = http.get(f"https://api.themoviedb.org/3{path}", params=params, timeout=10)
+        r = (quick_http if quick else http).get(f"https://api.themoviedb.org/3{path}", params=params,
+                                                timeout=(3, 8) if quick else 10)
     except requests.RequestException as e:
         raise NetworkError(str(e))
     if r.status_code == 404:
@@ -332,6 +337,55 @@ def enricher_loop():
             print(f"Koleksiyon hatası: {e}")
         state.enrich.update(done=0, total=0)
         state.bump()
+
+
+CREDITS_MAX_AGE = 30 * 86400
+CREDITS_RETRY_AFTER = 300
+_credits_failed = {}
+
+
+def _parse_credits(kind, d):
+    if kind == 'movie':
+        crew = (d.get('credits') or {}).get('crew') or []
+        cast = [{'n': p.get('name') or '', 'c': p.get('character') or '', 'p': p.get('profile_path') or ''}
+                for p in ((d.get('credits') or {}).get('cast') or [])[:15]]
+        directors = [p['name'] for p in crew if p.get('job') == 'Director']
+        writers = [p['name'] for p in crew if p.get('department') == 'Writing']
+        date = d.get('release_date') or ''
+    else:
+        cast = [{'n': p.get('name') or '', 'c': next((r['character'] for r in p.get('roles') or [] if r.get('character')), ''),
+                 'p': p.get('profile_path') or ''}
+                for p in ((d.get('aggregate_credits') or {}).get('cast') or [])[:15]]
+        directors = [p['name'] for p in d.get('created_by') or [] if p.get('name')]
+        writers = []
+        date = d.get('first_air_date') or ''
+    recs = [r['id'] for r in ((d.get('recommendations') or {}).get('results') or []) + ((d.get('similar') or {}).get('results') or [])
+            if r.get('id')]
+    return {'cast': cast, 'directors': list(dict.fromkeys(directors))[:3], 'writers': list(dict.fromkeys(writers))[:3],
+            'tagline': d.get('tagline') or '', 'date': date,
+            'countries': [c['iso_3166_1'] for c in d.get('production_countries') or [] if c.get('iso_3166_1')][:3],
+            'rec': list(dict.fromkeys(recs))[:40]}
+
+
+def credits(kind, tmdb_id):
+    """Cast, crew, tagline and TMDb recommendations for the pause screen; fetched on first use and kept in the db."""
+    with session() as c:
+        r = c.execute("SELECT data, fetched_at FROM credits WHERE kind = ? AND tmdb_id = ?", (kind, tmdb_id)).fetchone()
+    cached = json.loads(r['data']) if r else {}
+    key = (kind, tmdb_id)
+    if (r and time.time() - r['fetched_at'] < CREDITS_MAX_AGE) or time.time() - _credits_failed.get(key, 0) < CREDITS_RETRY_AFTER:
+        return cached
+    credits_part = 'credits' if kind == 'movie' else 'aggregate_credits'
+    try:
+        d = tmdb(f"/{kind}/{tmdb_id}", quick=True, append_to_response=f"{credits_part},recommendations,similar")
+    except NetworkError:
+        _credits_failed[key] = time.time()
+        return cached
+    data = _parse_credits(kind, d) if d else {}
+    with session() as c:
+        c.execute("INSERT OR REPLACE INTO credits (kind, tmdb_id, data, fetched_at) VALUES (?, ?, ?, ?)",
+                  (kind, tmdb_id, json.dumps(data, ensure_ascii=False), time.time()))
+    return data
 
 
 _season_jobs = set()

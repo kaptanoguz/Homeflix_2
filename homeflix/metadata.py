@@ -9,7 +9,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from . import state
+from . import media, state
 from .config import OMDB_KEYS, POSTERS_DIR, TMDB_IMG, TMDB_KEY, USER_AGENT
 from .db import session
 from . import library
@@ -337,6 +337,7 @@ def enricher_loop():
             print(f"Koleksiyon hatası: {e}")
         state.enrich.update(done=0, total=0)
         state.bump()
+        state.credits_wake.set()
 
 
 CREDITS_MAX_AGE = 30 * 86400
@@ -376,17 +377,85 @@ def credits(kind, tmdb_id):
     key = (kind, tmdb_id)
     if (r and time.time() - r['fetched_at'] < CREDITS_MAX_AGE) or time.time() - _credits_failed.get(key, 0) < CREDITS_RETRY_AFTER:
         return cached
-    credits_part = 'credits' if kind == 'movie' else 'aggregate_credits'
     try:
-        d = tmdb(f"/{kind}/{tmdb_id}", quick=True, append_to_response=f"{credits_part},recommendations,similar")
+        return fetch_credits(kind, tmdb_id, quick=True)
     except NetworkError:
         _credits_failed[key] = time.time()
         return cached
+
+
+def fetch_credits(kind, tmdb_id, quick=False):
+    credits_part = 'credits' if kind == 'movie' else 'aggregate_credits'
+    d = tmdb(f"/{kind}/{tmdb_id}", quick=quick, append_to_response=f"{credits_part},recommendations,similar")
     data = _parse_credits(kind, d) if d else {}
     with session() as c:
         c.execute("INSERT OR REPLACE INTO credits (kind, tmdb_id, data, fetched_at) VALUES (?, ?, ?, ?)",
                   (kind, tmdb_id, json.dumps(data, ensure_ascii=False), time.time()))
     return data
+
+
+PHOTO_SIZE = 'w185'
+PREFETCH_RETRY_AFTER = 1800
+
+
+def _missing_photos(data):
+    return [p['p'] for p in (data or {}).get('cast') or []
+            if p.get('p') and not os.path.exists(media.image_path(p['p'], PHOTO_SIZE))]
+
+
+def prefetch_credits():
+    """Downloads credits and actor photos for the whole library ahead of time, titles rated 8+ first, so the pause
+    screen opens instantly and works offline. Skips what is fresh and complete; False if the internet is down."""
+    with session() as c:
+        titles = c.execute("SELECT 'movie' AS kind, tmdb_id, MAX(CAST(rating AS REAL)) AS r FROM movies "
+                           "WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id UNION ALL "
+                           "SELECT 'tv', tmdb_id, MAX(CAST(rating AS REAL)) FROM series "
+                           "WHERE tmdb_id IS NOT NULL GROUP BY tmdb_id").fetchall()
+        have = {(r['kind'], r['tmdb_id']): json.loads(r['data']) for r in c.execute(
+            "SELECT kind, tmdb_id, data FROM credits WHERE fetched_at > ?", (time.time() - CREDITS_MAX_AGE,))}
+    jobs = [t for t in titles if (t['kind'], t['tmdb_id']) not in have or _missing_photos(have[(t['kind'], t['tmdb_id'])])]
+    jobs.sort(key=lambda t: ((t['r'] or 0) < 8, -(t['r'] or 0)))
+    state.credits.update(done=0, total=len(jobs))
+    api_failures = photo_failures = 0
+    for i, t in enumerate(jobs):
+        state.credits['done'] = i
+        key = (t['kind'], t['tmdb_id'])
+        data = have.get(key)
+        if data is None:
+            try:
+                data = fetch_credits(*key)
+                api_failures = 0
+            except NetworkError:
+                api_failures += 1
+                if api_failures >= 5:
+                    return False
+                continue
+        for path in _missing_photos(data):
+            if media.remote_image(path, PHOTO_SIZE):
+                photo_failures = 0
+            else:
+                photo_failures += 1
+                if photo_failures >= 10:
+                    return False
+        time.sleep(0.05)
+    return True
+
+
+def credits_loop():
+    while True:
+        state.credits_wake.wait()
+        state.credits_wake.clear()
+        try:
+            complete = prefetch_credits()
+        except Exception as e:
+            print(f"Oyuncu bilgileri hatası: {e}")
+            complete = True
+        state.credits.update(done=0, total=0)
+        if not complete:
+            print("Oyuncu bilgileri: TMDb'ye ulaşılamıyor, 30 dakika sonra tekrar denenecek")
+            timer = threading.Timer(PREFETCH_RETRY_AFTER, state.credits_wake.set)
+            timer.daemon = True
+            timer.start()
 
 
 _season_jobs = set()
@@ -419,3 +488,4 @@ def fetch_season(series_id, tmdb_id, season, ids=None):
 
 def start():
     threading.Thread(target=enricher_loop, daemon=True, name="enricher").start()
+    threading.Thread(target=credits_loop, daemon=True, name="credits").start()

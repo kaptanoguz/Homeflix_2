@@ -1,15 +1,16 @@
 import gzip
 import os
+import secrets
 import subprocess
 import threading
 import time
 from collections import defaultdict
 
-from flask import Flask, abort, jsonify, render_template, request, send_file
+from flask import Flask, abort, g, jsonify, render_template, request, send_file
 
 from . import library, media, metadata, state, subtitles
 from .config import BASE_DIR, POSTERS_DIR
-from .db import load_settings, save_settings, session
+from .db import LOCAL_VIEWER, load_settings, save_settings, session
 from .names import fold, sequel_key
 
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'),
@@ -18,9 +19,32 @@ settings = load_settings()
 library.settings_ref = settings
 
 
+VIEWER_COOKIE = 'hf_viewer'
+
+
+def viewer():
+    """Whose watch history this request reads and writes: the server computer, or the device's own cookie id."""
+    if 'viewer' not in g:
+        if is_local_request():
+            g.viewer = LOCAL_VIEWER
+        else:
+            vid = request.cookies.get(VIEWER_COOKIE, '')
+            if len(vid) != 32 or not all(ch in '0123456789abcdef' for ch in vid):
+                vid = g.new_viewer = secrets.token_hex(16)
+            g.viewer = vid
+    return g.viewer
+
+
+@app.before_request
+def identify():
+    viewer()
+
+
 @app.after_request
 def finish(response):
     p = request.path
+    if 'new_viewer' in g:
+        response.set_cookie(VIEWER_COOKIE, g.new_viewer, max_age=10 * 365 * 86400, samesite='Lax', httponly=True)
     if p == '/' or p.startswith('/api/'):
         response.headers['Cache-Control'] = 'no-store'
     elif p.startswith('/img/') and response.status_code == 200:
@@ -218,7 +242,7 @@ def api_series(sid):
             seen.add((e['season'], e['episode'], e['filename']))
             eps.append(e)
         fetched = {r['season'] for r in c.execute("SELECT season FROM season_fetch WHERE series_id = ?", (sid,))}
-        prog = {r['key']: r for r in c.execute("SELECT * FROM progress WHERE key LIKE 'e:%'")}
+        prog = {r['key']: r for r in c.execute("SELECT * FROM progress WHERE viewer = ? AND key LIKE 'e:%'", (viewer(),))}
     seasons = defaultdict(list)
     for e in eps:
         p = prog.get(f"e:{e['id']}")
@@ -251,24 +275,19 @@ def next_episode(c, e):
                      f"ORDER BY season, episode, id LIMIT 1", (*ids, e['season'], e['season'], e['episode'])).fetchone()
 
 
-def _progress_map():
-    with session() as c:
-        return {r['key']: r for r in c.execute("SELECT * FROM progress")}
-
-
 @app.route('/api/user')
 def api_user():
     with session() as c:
         prog = {r['key']: [round(r['position'] or 0), round(r['duration'] or 0), r['finished'] or 0, r['updated_at'] or 0]
-                for r in c.execute("SELECT * FROM progress WHERE key LIKE 'm:%'")}
-        mylist = [r['key'] for r in c.execute("SELECT key FROM mylist ORDER BY added_at DESC")]
+                for r in c.execute("SELECT * FROM progress WHERE viewer = ? AND key LIKE 'm:%'", (viewer(),))}
+        mylist = [r['key'] for r in c.execute("SELECT key FROM mylist WHERE viewer = ? ORDER BY added_at DESC", (viewer(),))]
     return jsonify({'progress': prog, 'mylist': mylist, 'continue': continue_watching()})
 
 
 def continue_watching():
     out = []
     with session() as c:
-        rows = c.execute("SELECT * FROM progress ORDER BY updated_at DESC LIMIT 60").fetchall()
+        rows = c.execute("SELECT * FROM progress WHERE viewer = ? ORDER BY updated_at DESC LIMIT 60", (viewer(),)).fetchall()
         seen_series = set()
         for r in rows:
             kind, _, sid = r['key'].partition(':')
@@ -317,15 +336,15 @@ def api_progress():
         abort(400)
     finished = 1 if dur > 0 and (pos >= dur * 0.93 or dur - pos < 90) else 0
     with session() as c:
-        c.execute("INSERT OR REPLACE INTO progress (key, position, duration, finished, updated_at) VALUES (?, ?, ?, ?, ?)",
-                  (key, 0 if finished else pos, dur, finished, time.time()))
+        c.execute("INSERT OR REPLACE INTO progress (viewer, key, position, duration, finished, updated_at) "
+                  "VALUES (?, ?, ?, ?, ?, ?)", (viewer(), key, 0 if finished else pos, dur, finished, time.time()))
     return jsonify({'ok': True, 'finished': bool(finished)})
 
 
 @app.route('/api/progress/<key>', methods=['DELETE'])
 def api_progress_delete(key):
     with session() as c:
-        c.execute("DELETE FROM progress WHERE key = ?", (key,))
+        c.execute("DELETE FROM progress WHERE viewer = ? AND key = ?", (viewer(), key))
     return jsonify({'ok': True})
 
 
@@ -337,9 +356,9 @@ def api_mylist():
         abort(400)
     with session() as c:
         if d.get('on'):
-            c.execute("INSERT OR IGNORE INTO mylist (key, added_at) VALUES (?, ?)", (key, time.time()))
+            c.execute("INSERT OR IGNORE INTO mylist (viewer, key, added_at) VALUES (?, ?, ?)", (viewer(), key, time.time()))
         else:
-            c.execute("DELETE FROM mylist WHERE key = ?", (key,))
+            c.execute("DELETE FROM mylist WHERE viewer = ? AND key = ?", (viewer(), key))
     return jsonify({'ok': True})
 
 
@@ -352,17 +371,17 @@ def api_migrate():
         for fav in d.get('favorites') or []:
             fav = str(fav)
             if fav.startswith('m_') and fav[2:].isdigit():
-                c.execute("INSERT OR IGNORE INTO mylist (key, added_at) VALUES (?, ?)", (f"m:{fav[2:]}", now))
+                c.execute("INSERT OR IGNORE INTO mylist (viewer, key, added_at) VALUES (?, ?, ?)", (viewer(), f"m:{fav[2:]}", now))
             elif fav.startswith('s_'):
                 r = c.execute("SELECT id FROM series WHERE title = ? OR CAST(id AS TEXT) = ?", (fav[2:], fav[2:])).fetchone()
                 if r:
-                    c.execute("INSERT OR IGNORE INTO mylist (key, added_at) VALUES (?, ?)", (f"s:{r['id']}", now))
+                    c.execute("INSERT OR IGNORE INTO mylist (viewer, key, added_at) VALUES (?, ?, ?)", (viewer(), f"s:{r['id']}", now))
         for vid, pos in (d.get('positions') or {}).items():
             if not str(vid).isdigit() or _num(pos) < 30:
                 continue
             kind = 'm' if c.execute("SELECT 1 FROM movies WHERE id = ?", (int(vid),)).fetchone() else 'e'
-            c.execute("INSERT OR IGNORE INTO progress (key, position, duration, finished, updated_at) VALUES (?, ?, 0, 0, ?)",
-                      (f"{kind}:{vid}", _num(pos), now))
+            c.execute("INSERT OR IGNORE INTO progress (viewer, key, position, duration, finished, updated_at) "
+                      "VALUES (?, ?, ?, 0, 0, ?)", (viewer(), f"{kind}:{vid}", _num(pos), now))
     return jsonify({'ok': True})
 
 
@@ -388,7 +407,7 @@ def api_media(kind, iid):
            'local_subs': [{'index': s['index'], 'label': s['label'], 'lang': s['lang']} for s in subtitles.local_subtitles(path)],
            'video': info['video'], 'file': os.path.basename(path), 'size': os.path.getsize(path)}
     with session() as c:
-        p = c.execute("SELECT * FROM progress WHERE key = ?", (f"{kind}:{iid}",)).fetchone()
+        p = c.execute("SELECT * FROM progress WHERE viewer = ? AND key = ?", (viewer(), f"{kind}:{iid}")).fetchone()
         out['resume'] = p['position'] if p and not p['finished'] else 0
         if kind == 'm':
             m = c.execute("SELECT title, year FROM movies WHERE id = ?", (iid,)).fetchone()

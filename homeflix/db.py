@@ -27,9 +27,10 @@ CREATE TABLE IF NOT EXISTS collections (
     parts INTEGER DEFAULT 0, fetched INTEGER DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS progress (
-    key TEXT PRIMARY KEY, position REAL, duration REAL, finished INTEGER DEFAULT 0, updated_at REAL
+    viewer TEXT NOT NULL, key TEXT NOT NULL, position REAL, duration REAL, finished INTEGER DEFAULT 0, updated_at REAL,
+    PRIMARY KEY (viewer, key)
 );
-CREATE TABLE IF NOT EXISTS mylist (key TEXT PRIMARY KEY, added_at REAL);
+CREATE TABLE IF NOT EXISTS mylist (viewer TEXT NOT NULL, key TEXT NOT NULL, added_at REAL, PRIMARY KEY (viewer, key));
 CREATE TABLE IF NOT EXISTS season_fetch (series_id INTEGER, season INTEGER, fetched_at REAL,
     PRIMARY KEY (series_id, season));
 CREATE INDEX IF NOT EXISTS idx_episodes_series ON episodes(series_id, season, episode);
@@ -63,9 +64,25 @@ def session():
         conn.close()
 
 
+# Requests from the server computer itself share this viewer id; other devices get their own from a cookie.
+LOCAL_VIEWER = "local"
+
+
+def _split_by_viewer(c):
+    """v2.0 kept one shared watch history; it was recorded on the server computer, so it becomes that viewer's."""
+    for table, cols in (("progress", "key, position, duration, finished, updated_at"), ("mylist", "key, added_at")):
+        have = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}
+        if have and "viewer" not in have:
+            c.execute(f"ALTER TABLE {table} RENAME TO {table}_shared")
+            c.executescript(SCHEMA)
+            c.execute(f"INSERT INTO {table} (viewer, {cols}) SELECT ?, {cols} FROM {table}_shared", (LOCAL_VIEWER,))
+            c.execute(f"DROP TABLE {table}_shared")
+
+
 def init_db():
     with session() as c:
         c.execute("PRAGMA journal_mode = WAL")
+        _split_by_viewer(c)
         c.executescript(SCHEMA)
         for table, cols in EXTRA_COLUMNS.items():
             have = {r[1] for r in c.execute(f"PRAGMA table_info({table})")}

@@ -269,7 +269,10 @@ def api_credits(kind, iid):
         r = c.execute(f"SELECT tmdb_id FROM {table} WHERE id = ?", (iid,)).fetchone()
     if not r:
         abort(404)
-    return jsonify(metadata.credits('movie' if kind == 'm' else 'tv', r['tmdb_id']) if r['tmdb_id'] else {})
+    data = metadata.credits('movie' if kind == 'm' else 'tv', r['tmdb_id']) if r['tmdb_id'] else {}
+    if data is None:
+        abort(503)
+    return jsonify(data)
 
 
 # ---------------------------------------------------------------- user state

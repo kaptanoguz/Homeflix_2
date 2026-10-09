@@ -928,7 +928,7 @@ const playingItem = () => !P.info ? null : P.kind === 'm' ? S.movieToTitle.get(P
 
 function loadCredits(it) {
   if (!it || !it.tm) return Promise.resolve({});
-  if (!CREDITS.has(it.key)) CREDITS.set(it.key, api.get(`/api/credits/${it.kind}/${it.id}`).catch(() => { CREDITS.delete(it.key); return {}; }));
+  if (!CREDITS.has(it.key)) CREDITS.set(it.key, api.get(`/api/credits/${it.kind}/${it.id}`).catch(() => { CREDITS.delete(it.key); return { failed: true }; }));
   return CREDITS.get(it.key);
 }
 
@@ -993,7 +993,7 @@ function showPauseInfo() {
     if (box.dataset.for !== key) return;
     const scroll = $('.pp-inner', box)?.scrollTop || 0;
     box.innerHTML = pauseHTML(it, { ...cr, done: true });
-    box.dataset.full = '1';
+    if (!cr.failed) box.dataset.full = '1';  // otherwise try TMDb again on the next pause
     $('.pp-inner', box).scrollTop = scroll;
   });
 }

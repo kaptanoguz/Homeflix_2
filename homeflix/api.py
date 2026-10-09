@@ -1,5 +1,6 @@
 import gzip
 import os
+import re
 import secrets
 import subprocess
 import threading
@@ -257,6 +258,18 @@ def api_series(sid):
         for n in pending:
             threading.Thread(target=metadata.fetch_season, args=(sid, s['tmdb_id'], n, ids), daemon=True).start()
     return jsonify({'id': sid, 'seasons': [{'n': n, 'eps': seasons[n]} for n in sorted(seasons)], 'pending': bool(pending)})
+
+
+@app.route('/api/credits/<kind>/<int:iid>')
+def api_credits(kind, iid):
+    table = {'m': 'movies', 's': 'series'}.get(kind)
+    if not table:
+        abort(404)
+    with session() as c:
+        r = c.execute(f"SELECT tmdb_id FROM {table} WHERE id = ?", (iid,)).fetchone()
+    if not r:
+        abort(404)
+    return jsonify(metadata.credits('movie' if kind == 'm' else 'tv', r['tmdb_id']) if r['tmdb_id'] else {})
 
 
 # ---------------------------------------------------------------- user state
@@ -574,6 +587,13 @@ def img_still(eid):
     with session() as c:
         r = c.execute("SELECT still FROM episodes WHERE id = ?", (eid,)).fetchone()
     return _send_image(media.remote_image(r['still'] if r else None, 'w300'))
+
+
+@app.route('/img/person/<name>')
+def img_person(name):
+    if not re.fullmatch(r'[A-Za-z0-9_-]{4,64}\.(jpg|jpeg|png)', name):
+        abort(404)
+    return _send_image(media.remote_image('/' + name, 'w185'))
 
 
 @app.route('/get_poster/<path:vid>')

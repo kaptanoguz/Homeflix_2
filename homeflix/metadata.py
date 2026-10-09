@@ -20,7 +20,7 @@ http = requests.Session()
 http.mount("https://", HTTPAdapter(max_retries=Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])))
 http.mount("http://", HTTPAdapter(max_retries=Retry(total=2, backoff_factor=1)))
 http.headers.update({'User-Agent': USER_AGENT})
-# For lookups made while a request waits (the pause screen): no retries, short timeouts.
+# For lookups made while a request waits (the pause screen): no retries, bounded timeouts.
 quick_http = requests.Session()
 quick_http.headers.update({'User-Agent': USER_AGENT})
 
@@ -41,7 +41,7 @@ def tmdb(path, quick=False, **params):
     params = {'api_key': TMDB_KEY, 'language': 'tr-TR', **params}
     try:
         r = (quick_http if quick else http).get(f"https://api.themoviedb.org/3{path}", params=params,
-                                                timeout=(3, 8) if quick else 10)
+                                                timeout=(6, 15) if quick else 10)
     except requests.RequestException as e:
         raise NetworkError(str(e))
     if r.status_code == 404:
@@ -340,7 +340,7 @@ def enricher_loop():
 
 
 CREDITS_MAX_AGE = 30 * 86400
-CREDITS_RETRY_AFTER = 300
+CREDITS_RETRY_AFTER = 60
 _credits_failed = {}
 
 
@@ -368,10 +368,11 @@ def _parse_credits(kind, d):
 
 
 def credits(kind, tmdb_id):
-    """Cast, crew, tagline and TMDb recommendations for the pause screen; fetched on first use and kept in the db."""
+    """Cast, crew, tagline and TMDb recommendations for the pause screen; fetched on first use and kept in the db.
+    None when TMDb can't be reached and nothing is cached yet."""
     with session() as c:
         r = c.execute("SELECT data, fetched_at FROM credits WHERE kind = ? AND tmdb_id = ?", (kind, tmdb_id)).fetchone()
-    cached = json.loads(r['data']) if r else {}
+    cached = json.loads(r['data']) if r else None
     key = (kind, tmdb_id)
     if (r and time.time() - r['fetched_at'] < CREDITS_MAX_AGE) or time.time() - _credits_failed.get(key, 0) < CREDITS_RETRY_AFTER:
         return cached

@@ -1,3 +1,4 @@
+import json
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -14,10 +15,20 @@ for _d in (DATA_DIR, POSTERS_DIR, CACHE_DIR, THUMBS_DIR, IMAGES_DIR, SUBS_DIR):
 
 PORT = int(os.environ.get("HOMEFLIX_PORT", "5000"))
 
-TMDB_KEY = "3aec63790d50f3b9fc2efb4c15a8cf99"
+# API keys live in secrets.json next to app.py (git-ignored; see secrets.example.json) or in environment variables,
+# so they never end up in the repository.
+SECRETS_FILE = os.path.join(BASE_DIR, "secrets.json")
+try:
+    with open(SECRETS_FILE, encoding="utf-8") as _f:
+        _secrets = json.load(_f)
+except (OSError, ValueError):
+    _secrets = {}
+
+TMDB_KEY = os.environ.get("HOMEFLIX_TMDB_KEY") or _secrets.get("tmdb_key", "")
 TMDB_IMG = "https://image.tmdb.org/t/p/"
-OMDB_KEYS = ["4255837a", "d0f27f55", "b9bd48a6"]
-OPENSUBTITLES_API_KEY = "DeTeFvcW0oZNdErwGeYlpjWNOsZozwDz"
+OMDB_KEYS = [k for k in (os.environ.get("HOMEFLIX_OMDB_KEYS", "").split(",") if os.environ.get("HOMEFLIX_OMDB_KEYS")
+                         else _secrets.get("omdb_keys", [])) if k]
+OPENSUBTITLES_API_KEY = os.environ.get("HOMEFLIX_OPENSUBTITLES_KEY") or _secrets.get("opensubtitles_api_key", "")
 USER_AGENT = "Homeflix/2.0"
 
 VIDEO_EXTS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.ts', '.vob',

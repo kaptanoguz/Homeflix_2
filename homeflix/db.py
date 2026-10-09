@@ -2,7 +2,7 @@ import os
 import sqlite3
 from contextlib import contextmanager
 
-from .config import DB_FILE, DEFAULT_MOVIE_DIRS, DEFAULT_SERIES_DIRS
+from .config import DB_FILE, DEFAULT_MOVIE_DIRS, DEFAULT_SERIES_DIRS, OMDB_KEYS
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT);
@@ -38,9 +38,10 @@ CREATE INDEX IF NOT EXISTS idx_episodes_series ON episodes(series_id, season, ep
 EXTRA_COLUMNS = {
     "movies": {"meta_tries": "INTEGER DEFAULT 0", "original_title": "TEXT", "tmdb_id": "INTEGER",
                "imdb_id": "TEXT", "collection_id": "INTEGER", "runtime": "INTEGER", "backdrop": "TEXT",
-               "added_at": "REAL", "size": "INTEGER", "enriched": "INTEGER DEFAULT 0"},
+               "added_at": "REAL", "size": "INTEGER", "enriched": "INTEGER DEFAULT 0", "cert": "TEXT"},
     "series": {"meta_tries": "INTEGER DEFAULT 0", "original_title": "TEXT", "tmdb_id": "INTEGER",
-               "backdrop": "TEXT", "added_at": "REAL", "enriched": "INTEGER DEFAULT 0", "display_title": "TEXT"},
+               "backdrop": "TEXT", "added_at": "REAL", "enriched": "INTEGER DEFAULT 0", "display_title": "TEXT",
+               "cert": "TEXT"},
     "episodes": {"ep_name": "TEXT", "ep_overview": "TEXT", "still": "TEXT", "runtime": "INTEGER"},
 }
 
@@ -96,7 +97,7 @@ def load_settings():
         conf = {r["key"]: r["value"] for r in c.execute("SELECT key, value FROM config")}
     conf.setdefault("movie_dir", _first_existing(DEFAULT_MOVIE_DIRS))
     conf.setdefault("series_dir", _first_existing(DEFAULT_SERIES_DIRS))
-    conf.setdefault("omdb_api_key", "4255837a")
+    conf.setdefault("omdb_api_key", OMDB_KEYS[0] if OMDB_KEYS else "")
     return conf
 
 

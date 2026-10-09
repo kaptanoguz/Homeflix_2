@@ -83,7 +83,7 @@ function buildLibrary(lib) {
       ...p, kind: 'm', key: 'm:' + p.id, versions: vs,
       add: Math.max(...vs.map(v => v.add || 0)),
       r: p.r || vs.find(v => v.r)?.r || '', g: p.g || vs.find(v => v.g)?.g || '',
-      p: p.p || vs.find(v => v.p)?.p || '', bd: vs.some(v => v.bd), c: vs.find(v => v.c)?.c || null,
+      p: p.p || vs.find(v => v.p)?.p || '', bd: vs.some(v => v.bd), c: vs.find(v => v.c)?.c || null, k: Math.max(...vs.map(v => +v.k || 0)),
     };
     t.bdId = (vs.find(v => v.bd) || p).id;
     t.search = fold([t.t, t.ot, t.g, t.y, t.p].join(' '));
@@ -331,6 +331,53 @@ function renderCollections() {
     <div class="grid cols" style="padding-top:20px">${cols.map(collectionCard).join('') || emptyState('Henüz koleksiyon yok', 'Film bilgileri tamamlandıkça devam filmleri burada gruplanacak.')}</div>`;
 }
 
+/* ---------------------------------------------------------------- kids zone */
+// Titles flagged by the server (animation / family rated G/PG, PG/PG-13 comedies and hand-picked titles).
+const KIDS_EMOJI = ['🎈', '⭐', '🚀', '🦄', '🐼', '🌈', '🍭', '🦖', '🎠', '🐠', '🪁', '🌟', '🐣', '🍦'];
+function renderKids() {
+  const movies = S.titles.filter(t => t.k);
+  const series = S.series.filter(s => s.k);
+  const r = x => parseFloat(x.r) || 0;
+  const kidKeys = new Set(movies.map(t => t.key));
+  const cols = S.cols.filter(c => c.titles.length > 1 && c.titles.every(t => kidKeys.has(t.key)));
+  const sky = KIDS_EMOJI.map((e, i) => `<span style="left:${(i * 7.3 + 3) % 96}%;top:${(i * 37 + 11) % 88}%;--d:${5 + i % 4}s;--w:${i * .4}s">${e}</span>`).join('');
+  const title = [...'Kids Zone'].map((ch, i) => ch === ' ' ? '<i class="sp"></i>' : `<span style="--i:${i}">${ch}</span>`).join('');
+  let html = `<div class="kids"><div class="kids-sky" aria-hidden="true">${sky}</div>
+    <header class="kids-hero">
+      <h1 class="kids-title" aria-label="Kids Zone">${title}</h1>
+      <p>Çizgi filmler, animasyonlar ve aile filmleri burada! ${movies.length + series.length} macera seni bekliyor.</p>
+      ${movies.length ? '<button class="kids-surprise" data-action="kids-surprise">🎲 Sürpriz Film!</button>' : ''}
+    </header><div class="rows">`;
+  html += row('🌟 En Sevilenler', [...movies].sort((a, b) => r(b) - r(a)).slice(0, 24));
+  html += row('🎨 Animasyon Filmleri', shuffle(movies.filter(t => genresOf(t).includes('Animasyon')), daySeed));
+  html += row('📺 Çizgi Diziler', series);
+  html += row('🧸 Film Serileri', cols, { kind: 'col' });
+  const live = movies.filter(t => !genresOf(t).includes('Animasyon'));
+  html += row('✨ Macera ve Fantastik', shuffle(live.filter(t => ['Macera', 'Fantastik', 'Bilim-Kurgu'].some(g => genresOf(t).includes(g))), daySeed + 3));
+  html += row('👨‍👩‍👧 Aile Filmleri', shuffle(live.filter(t => genresOf(t).includes('Aile')), daySeed + 1));
+  html += row('😂 Komediler', shuffle(live.filter(t => genresOf(t).includes('Komedi')), daySeed + 2));
+  html += row('🆕 Yeni Gelenler', [...movies].sort((a, b) => b.add - a.add).slice(0, 20));
+  if (!movies.length && !series.length) html += emptyState('Henüz çocuk filmi yok', 'Animasyon ve aile filmleri eklendikçe burada görünecek.');
+  $('#view').innerHTML = html + '</div></div>';
+  wireRails($('#view'));
+}
+
+function kidsSurprise() {
+  const pool = S.titles.filter(t => t.k);
+  if (!pool.length) return;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  for (let i = 0; i < 18; i++) {
+    const c = document.createElement('span');
+    c.className = 'kids-confetti';
+    c.textContent = KIDS_EMOJI[i % KIDS_EMOJI.length];
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.animationDelay = Math.random() * .3 + 's';
+    document.body.appendChild(c);
+    setTimeout(() => c.remove(), 1900);
+  }
+  setTimeout(() => openDetail(pick.key), 650);
+}
+
 function renderList() {
   const items = [...S.mylist].map(k => S.byKey.get(k) || S.movieToTitle.get(+k.slice(2))).filter((x, i, a) => x && a.indexOf(x) === i);
   $('#view').innerHTML = `
@@ -341,7 +388,7 @@ function renderList() {
 
 function route() {
   const [view, arg] = (location.hash.slice(1) || 'home').split('/');
-  S.view = ['home', 'movies', 'series', 'collections', 'list'].includes(view) ? view : 'home';
+  S.view = ['home', 'movies', 'series', 'collections', 'kids', 'list'].includes(view) ? view : 'home';
   if ((S.view === 'movies' || S.view === 'series')) S.browse[S.view].genre = arg ? decodeURIComponent(arg) : '';
   $$('[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === S.view));
   render();
@@ -353,7 +400,7 @@ function render() {
   clearInterval(heroTimer);
   const y = window.scrollY;
   ({ home: renderHome, movies: () => renderBrowse('movies'), series: () => renderBrowse('series'),
-     collections: renderCollections, list: renderList })[S.view]();
+     collections: renderCollections, kids: renderKids, list: renderList })[S.view]();
   return y;
 }
 function softRender() { const y = window.scrollY; render(); window.scrollTo(0, y); }
@@ -559,12 +606,12 @@ async function openSettings() {
         <div class="stat"><b>${S.cols.length}</b><span>Koleksiyon</span></div>
       </div>
       <div class="section"><div class="section-head"><h3>Kütüphane</h3></div>
-        <div class="form">
+        <div class="form">${s.local ? `
           <div class="field"><label for="conf-movie">Film klasörü</label><input id="conf-movie" value="${esc(s.movie_dir)}"></div>
           <div class="field"><label for="conf-series">Dizi klasörü</label><input id="conf-series" value="${esc(s.series_dir)}"></div>
-          <div class="field"><label for="conf-key">OMDb API anahtarı</label><input id="conf-key" value="${esc(s.omdb_api_key)}"></div>
-          <div class="actions">
-            <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}Kaydet ve Tara</button>
+          <div class="field"><label for="conf-key">OMDb API anahtarı</label><input id="conf-key" value="${esc(s.omdb_api_key)}"></div>` : ''}
+          <div class="actions">${s.local ? `
+            <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}Kaydet ve Tara</button>` : ''}
             <button class="btn btn-ghost btn-sm" data-action="rescan">${icon('refresh')}Yeniden Tara</button>
             <button class="btn btn-ghost btn-sm" data-action="emby">Emby'den Güncelle</button>
             <button class="btn btn-ghost btn-sm" data-action="enrich">Eksik Bilgileri Tekrar Ara</button>
@@ -1171,6 +1218,7 @@ document.addEventListener('click', async e => {
     if (a === 'search') return openSearch();
     if (a === 'settings') return openSettings();
     if (a === 'shuffle') return shuffleMovie();
+    if (a === 'kids-surprise') return kidsSurprise();
     return settingsAction(a);
   }
   if (t.hasAttribute('data-dismiss')) back();

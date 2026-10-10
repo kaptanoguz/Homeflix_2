@@ -278,9 +278,13 @@ main { min-height: 100vh; }
 
 /* ---------------------------------------------------------------- settings */
 .form { display: grid; gap: 16px; }
-.field label { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 7px; }
+.field label, .field .lbl { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 7px; }
 .field input { width: 100%; height: 44px; padding: 0 14px; border-radius: 8px; background: var(--bg-2); border: 1px solid var(--line-2); outline: none; transition: border-color .2s; }
 .field input:focus { border-color: #fff; }
+.chips.wrap { flex-wrap: wrap; overflow: visible; mask-image: none; padding-right: 0; }
+.chip .n { color: var(--dim); margin-left: 4px; }
+.chip.on .n { color: #52525b; }
+.rand-count { color: var(--muted); font-size: 14px; font-weight: 600; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
 .stat b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.02em; }

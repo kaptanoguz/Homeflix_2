@@ -11,6 +11,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -42,6 +43,7 @@ public class MainActivity extends Activity {
     private boolean offline;
 
     private static final int RETRY_MS = 5000;
+    private static final String ADDRESS_HINT = "Bilgisayarın adresini girin (örn. 10.1.5.74:5000)";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,6 +77,12 @@ public class MainActivity extends Activity {
         web.setFocusable(true);
         web.setFocusableInTouchMode(true);
         web.requestFocus();
+        // Telefonda kumanda yok: bağlantı ekranına dokunmak adres penceresini açar.
+        web.setOnTouchListener((v, e) -> {
+            if (!offline) return false;
+            if (e.getAction() == MotionEvent.ACTION_UP) showAddressDialog(ADDRESS_HINT);
+            return true;
+        });
 
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -148,16 +156,17 @@ public class MainActivity extends Activity {
     }
 
     // Bilgisayar uykuda ya da sunucu yeniden başlıyor olabilir: adresi yeniden sormak yerine kayıtlı adresi
-    // sessizce tekrar dener. Bu ekranda OK ya da MENU tuşu adres penceresini açar.
+    // sessizce tekrar dener. Bu ekranda OK / MENU tuşu ya da ekrana dokunmak adres penceresini açar.
     private void showOffline() {
         offline = true;
         String host = Uri.parse(currentUrl()).getAuthority();
-        String html = "<html><body style=\"margin:0;height:100vh;display:flex;align-items:center;justify-content:center;"
-                + "background:#0b0b0f;color:#f5f5f7;font-family:sans-serif;text-align:center\"><div>"
+        String html = "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>"
+                + "<body style=\"margin:0;height:100vh;display:flex;align-items:center;justify-content:center;"
+                + "background:#0b0b0f;color:#f5f5f7;font-family:sans-serif;text-align:center\"><div style=\"padding:0 24px\">"
                 + "<div style=\"color:#e5202e;font-size:44px;font-weight:800;letter-spacing:-1px\">HOMEFLIX</div>"
                 + "<p style=\"font-size:22px;margin:22px 0 8px\">" + host + " adresine bağlanılamıyor</p>"
                 + "<p style=\"color:#a1a1aa;font-size:17px;margin:0\">Bilgisayar açık mı? 5 saniye içinde tekrar denenecek.</p>"
-                + "<p style=\"color:#71717a;font-size:15px;margin-top:30px\">Adresi değiştirmek için OK tuşuna basın.</p>"
+                + "<p style=\"color:#71717a;font-size:15px;margin-top:30px\">Adresi değiştirmek için OK tuşuna basın ya da ekrana dokunun.</p>"
                 + "</div></body></html>";
         web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
         handler.removeCallbacks(retry);
@@ -208,12 +217,12 @@ public class MainActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_MENU:
-                showAddressDialog("Bilgisayarın adresini girin (örn. 10.1.5.74:5000)");
+                showAddressDialog(ADDRESS_HINT);
                 return true;
             case KeyEvent.KEYCODE_DPAD_CENTER:
             case KeyEvent.KEYCODE_ENTER:
                 if (offline) {
-                    showAddressDialog("Bilgisayarın adresini girin (örn. 10.1.5.74:5000)");
+                    showAddressDialog(ADDRESS_HINT);
                     return true;
                 }
                 break;

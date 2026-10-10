@@ -13,9 +13,20 @@ android {
         applicationId = "com.kaptanoguz.homeflix.tv"
         minSdk = 23
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
         buildConfigField("String", "DEFAULT_URL", "\"$serverUrl\"")
+    }
+
+    // Her derleme aynı anahtarla imzalanır; yoksa GitHub her seferinde yeni anahtar üretir ve yeni sürüm
+    // eskisinin üzerine kurulamaz (kaldırınca kayıtlı sunucu adresi de silinir).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildFeatures {

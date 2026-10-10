@@ -1,6 +1,8 @@
 # Homeflix TV (Android TV APK)
 
-Homeflix 2 sunucusunu (bilgisayarda çalışan Flask uygulaması) Android TV'de açan ince bir WebView uygulaması.
+Homeflix 2 sunucusunu (bilgisayarda çalışan Flask uygulaması) Android TV'de ve Android telefonlarda açan ince bir
+WebView uygulaması. Aynı APK ikisinde de çalışır; telefonda ekran döner, bağlantı ekranına dokunmak adresi değiştirir.
+Yalnızca ev ağında (sunucuyla aynı Wi-Fi'de) bağlanır.
 Sunucu bilgisayarda kalır; TV sadece arayüzü gösterir. mkv/avi dönüştürmesini sunucu yapar.
 
 ## Kullanım

@@ -617,6 +617,7 @@ async function openSettings() {
             <button class="btn btn-ghost btn-sm" data-action="enrich">Eksik Bilgileri Tekrar Ara</button>
           </div>
         </div></div>
+      ${randSection()}
       <div class="section"><div class="section-head"><h3>Diğer cihazlardan bağlan</h3></div>
         <div class="urls">${(s.urls.length ? s.urls : [location.origin]).map(u => `<div class="url"><span>${esc(u)}</span><button class="icon-btn" data-copy="${esc(u)}" title="Kopyala">${icon('copy')}</button></div>`).join('')}</div>
         <p style="color:var(--dim);font-size:13px;margin:10px 0 0">Telefon, tablet veya TV tarayıcısından bu adrese girin. Aynı Wi-Fi ağında olmanız yeterli.</p></div>
@@ -628,6 +629,49 @@ async function openSettings() {
         </div></div>
       <p style="color:#52525b;font-size:12px;margin-top:34px">Homeflix 2 · Film bilgileri TMDb, Emby ve OMDb'den alınır.</p>
     </div>`;
+}
+
+// Random movie filters are kept per device, like volume and subtitle style. Several genres match any of them.
+const RAND_MIN = [[0, 'Hepsi'], [6, '6+'], [7, '7+'], [8, '8+']];
+function movieGenres() {
+  const count = new Map();
+  S.titles.forEach(t => genresOf(t).forEach(g => count.set(g, (count.get(g) || 0) + 1)));
+  return [...count.entries()].sort((a, b) => b[1] - a[1]);
+}
+function randPrefs() {
+  const known = new Set(S.titles.flatMap(genresOf));
+  return { genres: store.get('randGenres', []).filter(g => known.has(g)), min: store.get('randMin', 6) };
+}
+function randPool() {
+  const { genres, min } = randPrefs();
+  return S.titles.filter(t => (!genres.length || genresOf(t).some(g => genres.includes(g))) && (!min || parseFloat(t.r) >= min));
+}
+function randSection() {
+  const { genres, min } = randPrefs();
+  const chip = (attr, on, label) => `<button class="chip${on ? ' on' : ''}" ${attr} aria-pressed="${on}">${label}</button>`;
+  return `<div class="section" id="rand-prefs"><div class="section-head"><h3>Rastgele film</h3><span class="rand-count" id="rand-count">${randPool().length} film</span></div>
+    <div class="form">
+      <div class="field"><span class="lbl">Türler</span><div class="chips wrap" role="group" aria-label="Türler">
+        ${chip('data-rand="genre" data-v=""', !genres.length, 'Tümü')}${movieGenres().map(([g, n]) => chip(`data-rand="genre" data-v="${esc(g)}"`, genres.includes(g), `${esc(g)} <span class="n">${n}</span>`)).join('')}
+      </div></div>
+      <div class="field"><span class="lbl">En düşük puan</span><div class="chips wrap" role="group" aria-label="En düşük puan">
+        ${RAND_MIN.map(([v, label]) => chip(`data-rand="min" data-v="${v}"`, v === min, label)).join('')}
+      </div></div>
+    </div></div>`;
+}
+function randAction(el) {
+  const { genres } = randPrefs();
+  const v = el.dataset.v;
+  if (el.dataset.rand === 'genre') store.set('randGenres', !v ? [] : genres.includes(v) ? genres.filter(g => g !== v) : [...genres, v]);
+  else store.set('randMin', +v);
+  // Toggle in place so the remote's focus stays on the chip that was pressed.
+  const now = randPrefs();
+  $$('[data-rand]').forEach(b => {
+    const on = b.dataset.rand === 'min' ? +b.dataset.v === now.min : b.dataset.v ? now.genres.includes(b.dataset.v) : !now.genres.length;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', on);
+  });
+  $('#rand-count').textContent = `${randPool().length} film`;
 }
 
 async function settingsAction(a) {
@@ -1267,9 +1311,8 @@ function playerKeys(e) {
 
 /* ================================================================ global events */
 function shuffleMovie() {
-  const good = S.titles.filter(t => parseFloat(t.r) >= 6);
-  const pool = good.length ? good : S.titles;
-  if (!pool.length) return;
+  const pool = randPool();
+  if (!pool.length) return toast(S.titles.length ? 'Rastgele film ayarlarına uyan film yok. Ayarlar’dan seçimleri genişletin.' : 'Kütüphanede film yok.', 3200);
   const m = pool[Math.floor(Math.random() * pool.length)];
   toast(`${icon('shuffle')} Rastgele seçildi: <b>${esc(m.t)}</b>`, 2200);
   setTimeout(() => play('m', m.id, { title: m.t }), 1100);
@@ -1300,6 +1343,8 @@ document.addEventListener('click', async e => {
   }
   const cp = t.closest('[data-copy]');
   if (cp) { navigator.clipboard?.writeText(cp.dataset.copy); return toast('Adres kopyalandı'); }
+  const rand = t.closest('[data-rand]');
+  if (rand) return randAction(rand);
   const go = t.closest('[data-goto]');
   if (go) { back(); setTimeout(() => { location.hash = go.dataset.goto; }, 60); return; }
   const act = t.closest('[data-action]');

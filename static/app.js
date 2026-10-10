@@ -613,7 +613,6 @@ async function openSettings() {
           <div class="actions">${s.local ? `
             <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}Kaydet ve Tara</button>` : ''}
             <button class="btn btn-ghost btn-sm" data-action="rescan">${icon('refresh')}Yeniden Tara</button>
-            <button class="btn btn-ghost btn-sm" data-action="emby">Emby'den Güncelle</button>
             <button class="btn btn-ghost btn-sm" data-action="enrich">Eksik Bilgileri Tekrar Ara</button>
           </div>
         </div></div>
@@ -680,7 +679,6 @@ async function settingsAction(a) {
     await api.post('/api/scan');
     toast('Ayarlar kaydedildi, tarama başladı');
   } else if (a === 'rescan') { await api.post('/api/rescan'); toast('Diskteki dosyalar taranıyor…'); }
-  else if (a === 'emby') { const r = await api.post('/api/sync_emby'); toast(`Emby: ${r.movies} film, ${r.series} dizi güncellendi`); await refresh(); }
   else if (a === 'enrich') { await api.post('/api/enrich'); toast('Eksik bilgiler yeniden aranıyor'); }
   pollStatus(true);
 }

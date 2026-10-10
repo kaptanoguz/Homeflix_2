@@ -11,7 +11,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.InputType;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
+import android.view.Gravity;
 import android.view.View;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -21,6 +21,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -40,7 +41,9 @@ public class MainActivity extends Activity {
     private String navJs = "";
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Runnable retry = () -> load(currentUrl());
+    private TextView offlineView;
     private boolean offline;
+    private boolean loadFailed;
 
     private static final int RETRY_MS = 5000;
     private static final String ADDRESS_HINT = "Bilgisayarın adresini girin (örn. 10.1.5.74:5000)";
@@ -53,6 +56,18 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(Color.BLACK);
         web = new WebView(this);
         root.addView(web, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+        offlineView = new TextView(this);
+        offlineView.setBackgroundColor(Color.parseColor("#0b0b0f"));
+        offlineView.setTextColor(Color.parseColor("#f5f5f7"));
+        offlineView.setTextSize(20);
+        offlineView.setGravity(Gravity.CENTER);
+        offlineView.setPadding(48, 0, 48, 0);
+        offlineView.setVisibility(View.GONE);
+        // Telefonda kumanda yok: bağlantı ekranına dokunmak adres penceresini açar.
+        offlineView.setOnClickListener(v -> showAddressDialog(ADDRESS_HINT));
+        root.addView(offlineView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT));
         setContentView(root);
@@ -77,25 +92,23 @@ public class MainActivity extends Activity {
         web.setFocusable(true);
         web.setFocusableInTouchMode(true);
         web.requestFocus();
-        // Telefonda kumanda yok: bağlantı ekranına dokunmak adres penceresini açar.
-        web.setOnTouchListener((v, e) -> {
-            if (!offline) return false;
-            if (e.getAction() == MotionEvent.ACTION_UP) showAddressDialog(ADDRESS_HINT);
-            return true;
-        });
 
         web.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
-                if (url == null || !url.startsWith("http")) return;
-                if (offline) return;  // başarısız yüklemenin yerini hata ekranı aldı
-                view.evaluateJavascript(navJs, null);
-                view.clearHistory();  // Geri tuşu eski hata ekranına dönmesin
+                // Homeflix menü ve oynatıcıyı açarken geçmişe kayıt ekler (history.pushState) ve WebView bunu da
+                // sayfa yüklendi diye bildirir; bu yüzden burada geçmiş silinmemeli, yoksa X / geri oku çalışmaz.
+                if (loadFailed) return;
+                hideOffline();
+                view.evaluateJavascript(navJs, null);  // tv-nav.js kendini bir kez kurar
             }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) showOffline();
+                if (request.isForMainFrame()) {
+                    loadFailed = true;
+                    showOffline();
+                }
             }
         });
 
@@ -151,26 +164,29 @@ public class MainActivity extends Activity {
 
     private void load(String url) {
         handler.removeCallbacks(retry);
-        offline = false;
+        loadFailed = false;
         web.loadUrl(url);
     }
 
     // Bilgisayar uykuda ya da sunucu yeniden başlıyor olabilir: adresi yeniden sormak yerine kayıtlı adresi
-    // sessizce tekrar dener. Bu ekranda OK / MENU tuşu ya da ekrana dokunmak adres penceresini açar.
+    // sessizce tekrar dener. Mesaj WebView'in üstünde ayrı bir katmanda durur, tarayıcı geçmişine girmez.
+    // Bu ekranda OK / MENU tuşu ya da ekrana dokunmak adres penceresini açar.
     private void showOffline() {
         offline = true;
         String host = Uri.parse(currentUrl()).getAuthority();
-        String html = "<html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>"
-                + "<body style=\"margin:0;height:100vh;display:flex;align-items:center;justify-content:center;"
-                + "background:#0b0b0f;color:#f5f5f7;font-family:sans-serif;text-align:center\"><div style=\"padding:0 24px\">"
-                + "<div style=\"color:#e5202e;font-size:44px;font-weight:800;letter-spacing:-1px\">HOMEFLIX</div>"
-                + "<p style=\"font-size:22px;margin:22px 0 8px\">" + host + " adresine bağlanılamıyor</p>"
-                + "<p style=\"color:#a1a1aa;font-size:17px;margin:0\">Bilgisayar açık mı? 5 saniye içinde tekrar denenecek.</p>"
-                + "<p style=\"color:#71717a;font-size:15px;margin-top:30px\">Adresi değiştirmek için OK tuşuna basın ya da ekrana dokunun.</p>"
-                + "</div></body></html>";
-        web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
+        offlineView.setText("HOMEFLIX\n\n" + host + " adresine bağlanılamıyor.\n"
+                + "Bilgisayar açık mı? 5 saniye içinde tekrar denenecek.\n\n"
+                + "Adresi değiştirmek için OK tuşuna basın ya da ekrana dokunun.");
+        offlineView.setVisibility(View.VISIBLE);
         handler.removeCallbacks(retry);
         handler.postDelayed(retry, RETRY_MS);
+    }
+
+    private void hideOffline() {
+        if (!offline) return;
+        offline = false;
+        offlineView.setVisibility(View.GONE);
+        web.requestFocus();
     }
 
     private String normalizeUrl(String raw) {
@@ -270,7 +286,9 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (customView != null) {
+        if (offline) {
+            super.onBackPressed();
+        } else if (customView != null) {
             chrome.onHideCustomView();
         } else if (web.canGoBack()) {
             web.goBack();

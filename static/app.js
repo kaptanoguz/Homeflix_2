@@ -596,38 +596,42 @@ async function openSettings() {
   sheet.innerHTML = `<div style="padding:60px;display:grid;place-items:center"><div class="spin"></div></div>`;
   const s = await api.get('/api/settings');
   sheet.innerHTML = `
-    <button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>
-    <div class="d-body" style="padding-top:34px">
-      <h2 style="margin:0 0 22px;font-size:28px;font-weight:800;letter-spacing:-.02em">Ayarlar</h2>
-      <div class="stats">
-        <div class="stat"><b>${s.stats.movies}</b><span>Film</span></div>
-        <div class="stat"><b>${s.stats.series}</b><span>Dizi</span></div>
-        <div class="stat"><b>${s.stats.episodes}</b><span>Bölüm</span></div>
-        <div class="stat"><b>${S.cols.length}</b><span>Koleksiyon</span></div>
+    <header class="st-head">
+      <h2>Ayarlar</h2>
+      <div class="st-stats">
+        <div><b>${s.stats.movies}</b>Film</div><div><b>${s.stats.series}</b>Dizi</div>
+        <div><b>${s.stats.episodes}</b>Bölüm</div><div><b>${S.cols.length}</b>Koleksiyon</div>
       </div>
-      <div class="section"><div class="section-head"><h3>Kütüphane</h3></div>
-        <div class="form">${s.local ? `
-          <div class="field"><label for="conf-movie">Film klasörü</label><input id="conf-movie" value="${esc(s.movie_dir)}"></div>
-          <div class="field"><label for="conf-series">Dizi klasörü</label><input id="conf-series" value="${esc(s.series_dir)}"></div>
-          <div class="field"><label for="conf-key">OMDb API anahtarı</label><input id="conf-key" value="${esc(s.omdb_api_key)}"></div>` : ''}
-          <div class="actions">${s.local ? `
-            <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}Kaydet ve Tara</button>` : ''}
-            <button class="btn btn-ghost btn-sm" data-action="rescan">${icon('refresh')}Yeniden Tara</button>
-            <button class="btn btn-ghost btn-sm" data-action="enrich">Eksik Bilgileri Tekrar Ara</button>
-          </div>
-        </div></div>
-      ${randSection()}
-      <div class="section"><div class="section-head"><h3>Diğer cihazlardan bağlan</h3></div>
-        <div class="urls">${(s.urls.length ? s.urls : [location.origin]).map(u => `<div class="url"><span>${esc(u)}</span><button class="icon-btn" data-copy="${esc(u)}" title="Kopyala">${icon('copy')}</button></div>`).join('')}</div>
-        <p style="color:var(--dim);font-size:13px;margin:10px 0 0">Telefon, tablet veya TV tarayıcısından bu adrese girin. Aynı Wi-Fi ağında olmanız yeterli.</p></div>
-      <div class="section"><div class="section-head"><h3>Klavye kısayolları</h3></div>
-        <div class="keys">
-          <div><kbd>/</kbd>Ara</div><div><kbd>Boşluk</kbd>Oynat / Duraklat</div><div><kbd>← →</kbd>10 sn geri / ileri</div>
-          <div><kbd>↑ ↓</kbd>Ses</div><div><kbd>F</kbd>Tam ekran</div><div><kbd>M</kbd>Sessiz</div>
-          <div><kbd>C</kbd>Ses ve altyazı</div><div><kbd>N</kbd>Sonraki bölüm</div><div><kbd>Esc</kbd>Geri</div>
-        </div></div>
-      <p style="color:#52525b;font-size:12px;margin-top:34px">Homeflix 2 · Film bilgileri TMDb, Emby ve OMDb'den alınır.</p>
-    </div>`;
+      <button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>
+    </header>
+    <div class="st-grid">
+      <div class="st-col">
+        <section class="st-card"><h3>Kütüphane</h3>
+          <div class="form">${s.local ? `
+            <div class="field"><label for="conf-movie">Film klasörü</label><input id="conf-movie" value="${esc(s.movie_dir)}"></div>
+            <div class="field"><label for="conf-series">Dizi klasörü</label><input id="conf-series" value="${esc(s.series_dir)}"></div>
+            <div class="field"><label for="conf-key">OMDb API anahtarı</label><input id="conf-key" value="${esc(s.omdb_api_key)}"></div>` : ''}
+            <div class="actions">${s.local ? `
+              <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}Kaydet ve Tara</button>` : ''}
+              <button class="btn btn-ghost btn-sm" data-action="rescan">${icon('refresh')}Yeniden Tara</button>
+              <button class="btn btn-ghost btn-sm" data-action="enrich">Eksik Bilgileri Tekrar Ara</button>
+            </div>
+          </div></section>
+        <section class="st-card"><h3>Diğer cihazlardan bağlan</h3>
+          <div class="urls">${(s.urls.length ? s.urls : [location.origin]).map(u => `<div class="url"><span>${esc(u)}</span><button class="icon-btn" data-copy="${esc(u)}" title="Kopyala">${icon('copy')}</button></div>`).join('')}</div>
+          <p class="st-hint">Telefon, tablet veya TV tarayıcısından bu adrese girin. Aynı Wi-Fi ağında olmanız yeterli.</p></section>
+      </div>
+      <div class="st-col">
+        ${randSection()}
+        <section class="st-card st-keys"><h3>Klavye kısayolları</h3>
+          <div class="keys">
+            <div><kbd>/</kbd>Ara</div><div><kbd>Boşluk</kbd>Oynat / Duraklat</div><div><kbd>← →</kbd>10 sn geri / ileri</div>
+            <div><kbd>↑ ↓</kbd>Ses</div><div><kbd>F</kbd>Tam ekran</div><div><kbd>M</kbd>Sessiz</div>
+            <div><kbd>C</kbd>Ses ve altyazı</div><div><kbd>N</kbd>Sonraki bölüm</div><div><kbd>Esc</kbd>Geri</div>
+          </div></section>
+      </div>
+    </div>
+    <p class="st-foot">Homeflix 2 · Film bilgileri TMDb, Emby ve OMDb'den alınır.</p>`;
 }
 
 // Random movie filters are kept per device, like volume and subtitle style. Several genres match any of them.
@@ -648,7 +652,7 @@ function randPool() {
 function randSection() {
   const { genres, min } = randPrefs();
   const chip = (attr, on, label) => `<button class="chip${on ? ' on' : ''}" ${attr} aria-pressed="${on}">${label}</button>`;
-  return `<div class="section" id="rand-prefs"><div class="section-head"><h3>Rastgele film</h3><span class="rand-count" id="rand-count">${randPool().length} film</span></div>
+  return `<section class="st-card" id="rand-prefs"><h3>Rastgele film<span class="rand-count" id="rand-count">${randPool().length} film</span></h3>
     <div class="form">
       <div class="field"><span class="lbl">Türler</span><div class="chips wrap" role="group" aria-label="Türler">
         ${chip('data-rand="genre" data-v=""', !genres.length, 'Tümü')}${movieGenres().map(([g, n]) => chip(`data-rand="genre" data-v="${esc(g)}"`, genres.includes(g), `${esc(g)} <span class="n">${n}</span>`)).join('')}
@@ -656,7 +660,7 @@ function randSection() {
       <div class="field"><span class="lbl">En düşük puan</span><div class="chips wrap" role="group" aria-label="En düşük puan">
         ${RAND_MIN.map(([v, label]) => chip(`data-rand="min" data-v="${v}"`, v === min, label)).join('')}
       </div></div>
-    </div></div>`;
+    </div></section>`;
 }
 function randAction(el) {
   const { genres } = randPrefs();

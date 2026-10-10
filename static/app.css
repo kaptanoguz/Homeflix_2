@@ -284,11 +284,36 @@ main { min-height: 100vh; }
 .chips.wrap { flex-wrap: wrap; overflow: visible; mask-image: none; padding-right: 0; }
 .chip .n { color: var(--dim); margin-left: 4px; }
 .chip.on .n { color: #52525b; }
-.rand-count { color: var(--muted); font-size: 14px; font-weight: 600; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-.stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
-.stat b { display: block; font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
-.stat span { color: var(--muted); font-size: 13px; }
+.rand-count { color: var(--muted); font-size: 13px; font-weight: 600; }
+/* Wide and short on computers and TVs: a sticky header and two columns of cards. One column on phones. */
+.st-sheet { max-width: 1180px; overflow: visible; }
+.st-head { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 20px; padding: 16px 18px 16px 28px; background: var(--panel); border-bottom: 1px solid var(--line); border-radius: 14px 14px 0 0; }
+.st-head h2 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
+.st-stats { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.st-stats div { display: flex; align-items: baseline; gap: 6px; padding: 5px 12px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.st-stats b { color: var(--text); font-size: 14px; font-weight: 800; }
+.st-head .close { position: static; flex: none; background: var(--panel-2); }
+.st-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 16px; align-items: start; padding: 20px 28px 0; }
+.st-col { display: grid; gap: 16px; min-width: 0; }
+.st-card { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px 20px; }
+.st-card h3 { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 0 0 14px; font-size: 16px; font-weight: 700; letter-spacing: -.01em; }
+.st-card .form { gap: 14px; }
+.st-card .field input { height: 40px; }
+.st-card .actions { gap: 8px; }
+.st-card .chip { height: 32px; padding: 0 13px; font-size: 13px; }
+.st-card .chips.wrap { gap: 6px; }
+.st-card .keys { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px 16px; }
+.st-hint { color: var(--dim); font-size: 12.5px; margin: 10px 0 0; }
+.st-foot { color: #52525b; font-size: 12px; margin: 0; padding: 16px 28px 22px; }
+@media (max-height: 700px) {
+  #settings .sheet-scroll { padding-top: 12px; padding-bottom: 12px; }
+  .st-head { padding-top: 10px; padding-bottom: 10px; }
+  .st-grid { gap: 12px; padding-top: 12px; }
+  .st-col { gap: 12px; }
+  .st-card { padding: 14px 18px 16px; }
+  .st-foot { padding-top: 10px; padding-bottom: 12px; }
+}
+@media (hover: none) { .st-keys { display: none; } }
 .urls { display: grid; gap: 8px; }
 .url { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--panel-2); border-radius: 8px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; }
 .url span { flex: 1; }
@@ -474,7 +499,16 @@ main { min-height: 100vh; }
   .ep { grid-template-columns: 120px minmax(0, 1fr); gap: 12px; padding: 12px 4px; }
   .ep .num { display: none; }
   .ep p { -webkit-line-clamp: 3; }
-  .stats { grid-template-columns: repeat(2, 1fr); }
+  .st-head { flex-wrap: wrap; gap: 12px; padding: calc(12px + env(safe-area-inset-top)) 12px 12px 16px; border-radius: 0; }
+  .st-head h2 { flex: 1; font-size: 22px; }
+  .st-stats { order: 3; flex-basis: 100%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .st-stats div { flex-direction: column; align-items: center; gap: 0; padding: 6px 4px; border-radius: 10px; font-size: 11px; }
+  .st-grid { grid-template-columns: 1fr; gap: 12px; padding: 14px 12px 0; }
+  .st-col { gap: 12px; }
+  .st-col:last-child { order: -1; }
+  .st-card { padding: 16px; }
+  .st-card .actions .btn { flex: 1 1 auto; }
+  .st-foot { padding: 14px 16px calc(28px + env(safe-area-inset-bottom)); }
   .p-top { padding: 14px 12px 40px; }
   .p-bottom { padding: 50px 12px 14px; }
   .p-btn { width: 42px; height: 42px; }

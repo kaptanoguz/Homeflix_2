@@ -11,6 +11,19 @@ Ev ağı için kişisel film ve dizi platformu.
 Diğer cihazlardan: `http://<bilgisayarın-ip-adresi>:5000` (adres Ayarlar ekranında yazar).
 Farklı port için: `HOMEFLIX_PORT=5001 ./run.sh`.
 
+Getting Your API Keys
+OMDB API Key (for posters & metadata)
+Go to https://www.omdbapi.com/apikey.aspx
+Select FREE tier (1,000 daily requests)
+Enter your email and submit
+Check your email for the API key
+Paste it into Home Theater settings
+OpenSubtitles API Key (for subtitles, optional)
+Create an account at https://www.opensubtitles.com
+Go to https://www.opensubtitles.com/consumers
+Register a new consumer/app to get your API key
+Paste it into Home Theater settings
+
 ## Neler var
 
 - **Ana sayfa:** Dönen öne çıkan alan, İzlemeye Devam Et, Listem, Yeni Eklenenler, Koleksiyonlar, Diziler, En Yüksek Puanlılar, türe göre satırlar

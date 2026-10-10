@@ -924,11 +924,11 @@ function mediaSession() {
   const art = P.kind === 'm' ? img('m', P.id, 'poster', 500) : img('s', P.info.sid, 'poster', 500);
   try {
     navigator.mediaSession.metadata = new MediaMetadata({ title: P.info.title, artist: P.info.sub || 'Homeflix', artwork: [{ src: art, sizes: '500x750', type: 'image/jpeg' }] });
-    navigator.mediaSession.setActionHandler('play', () => V().play());
-    navigator.mediaSession.setActionHandler('pause', () => V().pause());
-    navigator.mediaSession.setActionHandler('seekbackward', () => seek(pTime() - 10));
-    navigator.mediaSession.setActionHandler('seekforward', () => seek(pTime() + 10));
-    navigator.mediaSession.setActionHandler('nexttrack', P.next ? () => playNext() : null);
+    navigator.mediaSession.setActionHandler('play', () => mediaCommand('play'));
+    navigator.mediaSession.setActionHandler('pause', () => mediaCommand('pause'));
+    navigator.mediaSession.setActionHandler('seekbackward', () => mediaCommand('back'));
+    navigator.mediaSession.setActionHandler('seekforward', () => mediaCommand('fwd'));
+    navigator.mediaSession.setActionHandler('nexttrack', P.next ? () => mediaCommand('next') : null);
   } catch {}
 }
 
@@ -1289,9 +1289,32 @@ function wirePlayer() {
   window.addEventListener('pagehide', () => { if (P.open) savePosition(true); });
 }
 
+// Media buttons on TV remotes and keyboards. Android TV browsers name them in e.key; older TV platforms only
+// send a keyCode.
+const MEDIA_KEYS = { mediaplaypause: 'toggle', mediaplay: 'play', mediapause: 'pause', mediastop: 'pause',
+  mediarewind: 'back', mediafastforward: 'fwd', mediatracknext: 'next' };
+const MEDIA_CODES = { 179: 'toggle', 250: 'play', 415: 'play', 19: 'pause', 178: 'pause', 413: 'pause',
+  227: 'back', 412: 'back', 228: 'fwd', 417: 'fwd', 176: 'next' };
+
+function mediaCommand(cmd) {
+  // Some browsers deliver one button press both as a key event and to the media session; act on it once.
+  if (Date.now() - (P.mediaAt || 0) < 400) return;
+  P.mediaAt = Date.now();
+  const v = V();
+  if (cmd === 'toggle') togglePlay();
+  else if (cmd === 'play') { if (v.paused) togglePlay(); }
+  else if (cmd === 'pause') { if (!v.paused) togglePlay(); }
+  else if (cmd === 'back') { seekHint(-1); seek(pTime() - 10); }
+  else if (cmd === 'fwd') { seekHint(1); seek(pTime() + 10); }
+  else if (cmd === 'next') { if (P.next) playNext(); }
+  showUI();
+}
+
 function playerKeys(e) {
   const v = V();
   const k = e.key.toLowerCase();
+  const media = MEDIA_KEYS[k] || MEDIA_CODES[e.keyCode];
+  if (media) { e.preventDefault(); return mediaCommand(media); }
   const map = {
     ' ': togglePlay, k: togglePlay,
     arrowleft: () => { seekHint(-1); seek(pTime() - 10); }, j: () => { seekHint(-1); seek(pTime() - 10); },

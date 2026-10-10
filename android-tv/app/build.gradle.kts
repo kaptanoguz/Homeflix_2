@@ -2,8 +2,8 @@ plugins {
     id("com.android.application")
 }
 
-// Sunucu adresi: gradle assembleDebug -PserverUrl=http://192.168.1.50:5000
-val serverUrl: String = (project.findProperty("serverUrl") as String?) ?: "http://192.168.1.100:5000"
+// Sunucu adresi: gradle assembleDebug -PserverUrl=http://10.1.5.74:5000
+val serverUrl: String = (project.findProperty("serverUrl") as String?) ?: "http://10.1.5.74:5000"
 
 android {
     namespace = "com.kaptanoguz.homeflix.tv"

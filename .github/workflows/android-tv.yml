@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       server_url:
-        description: "Homeflix sunucu adresi (örn. http://192.168.1.50:5000)"
+        description: "Homeflix sunucu adresi (örn. http://10.1.5.74:5000)"
         required: false
-        default: "http://192.168.1.100:5000"
+        default: "http://10.1.5.74:5000"
   push:
     paths:
       - "android-tv/**"
@@ -23,8 +23,8 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
-
+      # Android SDK GitHub'ın Ubuntu makinelerinde hazır kurulu. android-actions/setup-android@v3 artık
+      # var olmayan "tools" paketini kurmaya çalışıp derlemeyi düşürüyordu.
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
@@ -32,7 +32,7 @@ jobs:
       - name: APK derle
         working-directory: android-tv
         env:
-          SERVER_URL: ${{ inputs.server_url || 'http://192.168.1.100:5000' }}
+          SERVER_URL: ${{ inputs.server_url || 'http://10.1.5.74:5000' }}
         run: gradle assembleDebug -PserverUrl="$SERVER_URL" --no-daemon
 
       - uses: actions/upload-artifact@v4

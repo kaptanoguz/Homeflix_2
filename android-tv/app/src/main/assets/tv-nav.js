@@ -141,6 +141,11 @@
   }
 
   window.hfTvMedia = function (a) {
+    // Homeflix'in kendi oynatıcı komutları dönüştürülen (mkv/avi) videolarda da doğru sarar.
+    if (typeof mediaCommand === 'function') {
+      if (typeof P !== 'undefined' && P.open) mediaCommand(a);
+      return;
+    }
     var v = mainVideo();
     if (!v) return;
     if (a === 'toggle') { v.paused ? v.play() : v.pause(); }

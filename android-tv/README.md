@@ -7,7 +7,9 @@ Sunucu bilgisayarda kalır; TV sadece arayüzü gösterir. mkv/avi dönüştürm
 
 1. Bilgisayarda: `./run.sh --headless` (gerekirse `sudo ufw allow 5000/tcp`)
 2. Bilgisayara sabit IP verin (router'dan DHCP rezervasyonu).
-3. APK'yı TV'ye kurun, açın. Bağlanamazsa adres penceresi çıkar. Kumandada **MENU** tuşu da adresi değiştirir.
+3. APK'yı TV'ye kurun, açın. İlk açılışta adres sorulur (varsayılan `10.1.5.74:5000`), sonra hatırlanır.
+   Sunucuya ulaşılamazsa uygulama 5 saniyede bir tekrar dener; adresi değiştirmek için o ekranda **OK** tuşuna
+   (ya da kumandada varsa **MENU** tuşuna) basın.
 
 Kumanda: yön tuşları gezinir, merkez tuşu tıklar, geri tuşu geri gider. Oynatıcıda play/pause, ileri/geri sarma tuşları çalışır;
 tam ekranda sol/sağ ±10 sn, merkez oynat/durdur.

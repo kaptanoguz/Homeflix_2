@@ -7,6 +7,8 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.KeyEvent;
 import android.view.View;
@@ -35,6 +37,11 @@ public class MainActivity extends Activity {
     private WebChromeClient chrome;
     private AlertDialog dialog;
     private String navJs = "";
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable retry = () -> load(currentUrl());
+    private boolean offline;
+
+    private static final int RETRY_MS = 5000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,7 +57,9 @@ public class MainActivity extends Activity {
 
         navJs = readAsset("tv-nav.js");
         setupWebView();
-        web.loadUrl(currentUrl());
+        // Adres yalnızca ilk açılışta sorulur; sonra kayıtlı adres kullanılır.
+        if (hasSavedUrl()) load(currentUrl());
+        else showAddressDialog("Homeflix'in çalıştığı bilgisayarın adresini girin. Bir kez sorulur, sonra hatırlanır.");
     }
 
     private void setupWebView() {
@@ -70,15 +79,15 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
+                if (url == null || !url.startsWith("http")) return;
+                if (offline) return;  // başarısız yüklemenin yerini hata ekranı aldı
                 view.evaluateJavascript(navJs, null);
+                view.clearHistory();  // Geri tuşu eski hata ekranına dönmesin
             }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) {
-                    showAddressDialog("Sunucuya bağlanılamadı. Adresi kontrol edin ve bilgisayarda "
-                            + "Homeflix'in çalıştığından emin olun.");
-                }
+                if (request.isForMainFrame()) showOffline();
             }
         });
 
@@ -120,9 +129,39 @@ public class MainActivity extends Activity {
 
     // ---- Sunucu adresi ----
 
+    private SharedPreferences prefs() {
+        return getSharedPreferences(PREFS, MODE_PRIVATE);
+    }
+
+    private boolean hasSavedUrl() {
+        return prefs().contains(KEY_URL);
+    }
+
     private String currentUrl() {
-        SharedPreferences p = getSharedPreferences(PREFS, MODE_PRIVATE);
-        return p.getString(KEY_URL, BuildConfig.DEFAULT_URL);
+        return prefs().getString(KEY_URL, BuildConfig.DEFAULT_URL);
+    }
+
+    private void load(String url) {
+        handler.removeCallbacks(retry);
+        offline = false;
+        web.loadUrl(url);
+    }
+
+    // Bilgisayar uykuda ya da sunucu yeniden başlıyor olabilir: adresi yeniden sormak yerine kayıtlı adresi
+    // sessizce tekrar dener. Bu ekranda OK ya da MENU tuşu adres penceresini açar.
+    private void showOffline() {
+        offline = true;
+        String host = Uri.parse(currentUrl()).getAuthority();
+        String html = "<html><body style=\"margin:0;height:100vh;display:flex;align-items:center;justify-content:center;"
+                + "background:#0b0b0f;color:#f5f5f7;font-family:sans-serif;text-align:center\"><div>"
+                + "<div style=\"color:#e5202e;font-size:44px;font-weight:800;letter-spacing:-1px\">HOMEFLIX</div>"
+                + "<p style=\"font-size:22px;margin:22px 0 8px\">" + host + " adresine bağlanılamıyor</p>"
+                + "<p style=\"color:#a1a1aa;font-size:17px;margin:0\">Bilgisayar açık mı? 5 saniye içinde tekrar denenecek.</p>"
+                + "<p style=\"color:#71717a;font-size:15px;margin-top:30px\">Adresi değiştirmek için OK tuşuna basın.</p>"
+                + "</div></body></html>";
+        web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null);
+        handler.removeCallbacks(retry);
+        handler.postDelayed(retry, RETRY_MS);
     }
 
     private String normalizeUrl(String raw) {
@@ -141,8 +180,9 @@ public class MainActivity extends Activity {
         final EditText input = new EditText(this);
         input.setSingleLine(true);
         input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
-        input.setText(currentUrl());
+        input.setText(currentUrl().replaceFirst("^http://", ""));
         input.setSelectAllOnFocus(true);
+        handler.removeCallbacks(retry);
 
         dialog = new AlertDialog.Builder(this)
                 .setTitle("Homeflix sunucu adresi")
@@ -150,10 +190,11 @@ public class MainActivity extends Activity {
                 .setView(input)
                 .setPositiveButton("Bağlan", (d, w) -> {
                     String u = normalizeUrl(input.getText().toString());
-                    getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(KEY_URL, u).apply();
-                    web.loadUrl(u);
+                    prefs().edit().putString(KEY_URL, u).apply();
+                    load(u);
                 })
-                .setNegativeButton("İptal", null)
+                .setNegativeButton("İptal", (d, w) -> load(currentUrl()))
+                .setOnCancelListener(d -> load(currentUrl()))
                 .show();
     }
 
@@ -167,8 +208,15 @@ public class MainActivity extends Activity {
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         switch (keyCode) {
             case KeyEvent.KEYCODE_MENU:
-                showAddressDialog("Bilgisayarın adresini girin (örn. 192.168.1.50:5000)");
+                showAddressDialog("Bilgisayarın adresini girin (örn. 10.1.5.74:5000)");
                 return true;
+            case KeyEvent.KEYCODE_DPAD_CENTER:
+            case KeyEvent.KEYCODE_ENTER:
+                if (offline) {
+                    showAddressDialog("Bilgisayarın adresini girin (örn. 10.1.5.74:5000)");
+                    return true;
+                }
+                break;
             case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
                 media("toggle");
                 return true;
@@ -236,6 +284,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        handler.removeCallbacks(retry);
         root.removeAllViews();
         web.destroy();
         super.onDestroy();

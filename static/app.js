@@ -60,6 +60,7 @@ function toast(msg, ms = 2600) {
 const S = {
   titles: [], series: [], cols: [], byKey: new Map(), movieToTitle: new Map(), colById: new Map(),
   genres: [], progress: {}, mylist: new Set(), cont: [], version: 0, loaded: false,
+  tmMovie: new Map(), tmSeries: new Map(), online: new Map(), embed: 'https://framextv.tech/embed',
   view: 'home', browse: { movies: { genre: '', sort: 'added' }, series: { genre: '', sort: 'added' } },
 };
 
@@ -99,6 +100,8 @@ function buildLibrary(lib) {
   S.byKey = new Map([...S.titles, ...S.series, ...S.cols].map(x => [x.key, x]));
   S.series.forEach(s => (s.ids || []).forEach(i => { if (!S.byKey.has('s:' + i)) S.byKey.set('s:' + i, s); }));
   S.colById = new Map(S.cols.map(c => [String(c.id), c]));
+  S.tmMovie = new Map(S.titles.filter(t => t.tm).map(t => [t.tm, t]));
+  S.tmSeries = new Map(S.series.filter(x => x.tm).map(x => [x.tm, x]));
   const count = new Map();
   [...S.titles, ...S.series].forEach(it => genresOf(it).forEach(g => count.set(g, (count.get(g) || 0) + 1)));
   S.genres = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([g, n]) => ({ g, n }));
@@ -110,8 +113,11 @@ async function loadLibrary() { buildLibrary(await api.get('/api/library')); }
 async function loadUser() {
   const u = await api.get('/api/user');
   S.progress = u.progress; S.mylist = new Set(u.mylist); S.cont = u.continue;
+  S.online = new Map(Object.entries(u.online || {}).map(([k, d]) => [k, onlineItem(d)]));
+  if (u.embed) S.embed = u.embed;
 }
 const inList = it => it.kind === 'm' ? it.versions.some(v => S.mylist.has('m:' + v.id)) : S.mylist.has(it.key);
+const itemByKey = k => S.byKey.get(k) || OL.items.get(k) || S.online.get(k) || (k.startsWith('m:') ? S.movieToTitle.get(+k.slice(2)) : null);
 function movieProgress(t) {
   let best = null;
   for (const v of t.versions || []) {
@@ -131,6 +137,7 @@ function artHTML(it, w = 342) {
       `<div class="ph" style="--h:${hue(it.name)}">${esc(it.name)}</div>`;
   }
   const ph = `<div class="ph" style="--h:${hue(it.t)}">${esc(it.t)}</div>`;
+  if (it.online) return it.op ? `${ph}<img src="/img/tmdb/w342${it.op}" alt="${esc(it.t)}" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">` : ph;
   if (!it.ph) return ph;
   return `${ph}<img src="${img(it.kind, it.id, 'poster', w)}" alt="${esc(it.t)}" loading="lazy" decoding="async" onload="this.classList.add('ok')" onerror="this.remove()">`;
 }
@@ -138,10 +145,11 @@ function artHTML(it, w = 342) {
 function posterCard(it, { caption = false, current = false } = {}) {
   const prog = it.kind === 'm' ? movieProgress(it) : null;
   const pct = prog && !prog[2] && prog[1] ? clamp(prog[0] / prog[1] * 100, 2, 100) : 0;
-  const sub = [it.y, it.kind === 's' ? `${it.seasons} sezon` : fmtRuntime(it.rt)].filter(Boolean).join(' · ');
+  const sub = [it.y, it.kind === 's' ? `${it.seasons} sezon` : it.kind === 'os' ? 'Dizi' : fmtRuntime(it.rt)].filter(Boolean).join(' · ');
+  const flag = it.online ? (localOf(it) ? '<span class="flag own">KÜTÜPHANEDE</span>' : '') : isNew(it) && !caption ? '<span class="flag new">YENİ</span>' : '';
   return `<div class="card${current ? ' current' : ''}" tabindex="0" role="button" data-open="${it.key}" aria-label="${esc(it.t)}">
     <div class="art">${artHTML(it)}
-      ${isNew(it) && !caption ? '<span class="flag new">YENİ</span>' : ''}
+      ${flag}
       <div class="shade"><strong>${esc(it.t)}</strong><span>${it.r ? `<b class="score">${icon('star')}${esc(it.r)}</b>` : ''}${esc(sub)}</span></div>
       ${pct ? `<div class="pbar progress-line"><i style="width:${pct}%"></i></div>` : ''}
     </div>
@@ -150,6 +158,7 @@ function posterCard(it, { caption = false, current = false } = {}) {
 }
 
 function continueCard(c) {
+  if (c.kind === 'om' || c.kind === 'oe') return onlineContinueCard(c);
   const series = c.kind === 'e' ? S.byKey.get('s:' + c.sid) : null;
   const movie = c.kind === 'm' ? S.movieToTitle.get(c.id) : null;
   const src = series ? (series.bd ? img('s', series.id, 'backdrop', 640) : series.ph ? img('s', series.id, 'poster', 342) : '')
@@ -215,12 +224,21 @@ let heroTimer = null;
 
 function heroHTML(picks) {
   if (!picks.length) return '<div style="height:calc(var(--nav-h) + 20px)"></div>';
-  const slides = picks.map((it, i) => `<div class="hero-slide${i ? '' : ' on'}"><img src="${img(it.kind, it.kind === 'm' ? it.bdId : it.id, 'backdrop', 1600)}" alt="" ${i ? 'loading="lazy"' : 'fetchpriority="high"'}></div>`).join('');
+  const src = it => it.online ? `/img/tmdb/w1280${it.ob}` : img(it.kind, it.kind === 'm' ? it.bdId : it.id, 'backdrop', 1600);
+  const slides = picks.map((it, i) => `<div class="hero-slide${i ? '' : ' on'}"><img src="${src(it)}" alt="" ${i ? 'loading="lazy"' : 'fetchpriority="high"'}></div>`).join('');
   return `<section class="hero" id="hero">${slides}<div class="hero-content" id="hero-content"></div>
     ${picks.length > 1 ? `<div class="hero-dots">${picks.map((_, i) => `<button data-hero="${i}" class="${i ? '' : 'on'}" aria-label="Öne çıkan ${i + 1}"></button>`).join('')}</div>` : ''}</section>`;
 }
 
 function heroContent(it) {
+  if (it.online) return `<div class="kicker"><b>H</b>Online · ${it.kind === 'os' ? 'Dizi' : 'Film'}</div>
+    <h1>${esc(it.t)}</h1>
+    <div class="meta">${metaLine(it)}</div>
+    <p class="plot">${esc(it.p)}</p>
+    <div class="actions">
+      <button class="btn btn-play" ${it.kind === 'os' ? `data-open="${it.key}"` : `data-oplay="m:${it.tm}"`}>${icon('play', 'fill')}Oynat</button>
+      <button class="btn btn-ghost" data-open="${it.key}">${icon('info')}Daha Fazla Bilgi</button>
+    </div>`;
   const col = it.c ? S.colById.get(String(it.c)) : null;
   const kicker = it.kind === 's' ? 'Dizi' : col ? `Koleksiyon · ${col.name}` : isNew(it) ? 'Yeni Eklendi' : 'Öne Çıkan Film';
   const prog = it.kind === 'm' ? movieProgress(it) : null;
@@ -258,7 +276,7 @@ function renderHome() {
   const picks = shuffle(withBd.length ? withBd : pool.filter(t => t.bd), daySeed + (Date.now() / 36e5 | 0)).slice(0, 6);
   const byAdd = [...S.titles].sort((a, b) => b.add - a.add);
   const top = S.titles.filter(t => parseFloat(t.r) >= 7.2).sort((a, b) => parseFloat(b.r) - parseFloat(a.r));
-  const list = [...S.mylist].map(k => S.byKey.get(k) || S.movieToTitle.get(+k.slice(2))).filter((x, i, a) => x && a.indexOf(x) === i);
+  const list = [...S.mylist].map(itemByKey).filter((x, i, a) => x && a.indexOf(x) === i);
   const cols = [...S.cols].sort((a, b) => b.titles.length - a.titles.length);
   const series = [...S.series].sort((a, b) => b.add - a.add);
   let html = heroHTML(picks) + '<div class="rows">';
@@ -379,7 +397,7 @@ function kidsSurprise() {
 }
 
 function renderList() {
-  const items = [...S.mylist].map(k => S.byKey.get(k) || S.movieToTitle.get(+k.slice(2))).filter((x, i, a) => x && a.indexOf(x) === i);
+  const items = [...S.mylist].map(itemByKey).filter((x, i, a) => x && a.indexOf(x) === i);
   $('#view').innerHTML = `
     <div class="page-head"><h1>Listem</h1><span class="count">${items.length} içerik</span></div>
     <div class="grid" style="padding-top:20px">${items.map(it => posterCard(it, { caption: true })).join('') ||
@@ -388,7 +406,7 @@ function renderList() {
 
 function route() {
   const [view, arg] = (location.hash.slice(1) || 'home').split('/');
-  S.view = ['home', 'movies', 'series', 'collections', 'kids', 'list'].includes(view) ? view : 'home';
+  S.view = ['home', 'movies', 'series', 'collections', 'kids', 'list', 'online'].includes(view) ? view : 'home';
   if ((S.view === 'movies' || S.view === 'series')) S.browse[S.view].genre = arg ? decodeURIComponent(arg) : '';
   $$('[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === S.view));
   render();
@@ -400,7 +418,7 @@ function render() {
   clearInterval(heroTimer);
   const y = window.scrollY;
   ({ home: renderHome, movies: () => renderBrowse('movies'), series: () => renderBrowse('series'),
-     collections: renderCollections, kids: renderKids, list: renderList })[S.view]();
+     collections: renderCollections, kids: renderKids, list: renderList, online: renderOnline })[S.view]();
   return y;
 }
 function softRender() { const y = window.scrollY; render(); window.scrollTo(0, y); }
@@ -424,6 +442,7 @@ window.addEventListener('popstate', () => {
 let detailKey = null;
 
 async function openDetail(key) {
+  if (/^o[ms]:\d+$/.test(key)) return openOnlineDetail(key);
   const it = S.byKey.get(key) || (key.startsWith('m:') ? S.movieToTitle.get(+key.slice(2)) : null);
   if (!it) return;
   const el = $('#detail');
@@ -440,9 +459,9 @@ async function openDetail(key) {
 
 function detailHero(it, title, actions, metaHTML) {
   const kind = it.kind === 'c' ? 'c' : it.kind;
-  const bdSrc = it.kind === 'c' ? (it.backdrop ? img('c', it.id, 'backdrop', 1280) : (() => { const f = it.titles.find(t => t.bd); return f ? img('m', f.bdId, 'backdrop', 1280) : ''; })())
+  const bdSrc = it.online ? (it.ob ? `/img/tmdb/w1280${it.ob}` : '') : it.kind === 'c' ? (it.backdrop ? img('c', it.id, 'backdrop', 1280) : (() => { const f = it.titles.find(t => t.bd); return f ? img('m', f.bdId, 'backdrop', 1280) : ''; })())
     : it.bd ? img(kind, kind === 'm' ? it.bdId : it.id, 'backdrop', 1280) : '';
-  const posterSrc = it.kind !== 'c' && it.ph ? img(kind, it.id, 'poster', 500) : '';
+  const posterSrc = it.online ? (it.op ? `/img/tmdb/w500${it.op}` : '') : it.kind !== 'c' && it.ph ? img(kind, it.id, 'poster', 500) : '';
   const fallback = posterSrc ? `<img class="blurposter" src="${posterSrc}" alt="">` : `<div class="ph" style="--h:${hue(title)}"></div>`;
   return `<div class="d-hero">${bdSrc ? `<img src="${bdSrc}" alt="" onload="this.classList.add('ok')" onerror="this.outerHTML=this.dataset.fb" data-fb='${esc(fallback)}'>` : fallback}
     <div class="d-head"><h1>${esc(title)}</h1>${metaHTML ? `<div class="meta" style="margin-bottom:18px">${metaHTML}</div>` : ''}<div class="actions">${actions}</div></div></div>`;
@@ -542,11 +561,12 @@ async function loadEpisodes(s, season, tries = 0) {
 }
 
 async function toggleList(key, btn) {
-  const it = S.byKey.get(key);
+  const it = itemByKey(key);
   if (!it) return;
   const on = !inList(it);
   const keys = it.kind === 'm' ? (on ? [it.key] : it.versions.map(v => 'm:' + v.id)) : [it.key];
   for (const k of keys) { await api.post('/api/mylist', { key: k, on }); on ? S.mylist.add(k) : S.mylist.delete(k); }
+  if (it.online && on) S.online.set(it.key, it);
   if (btn) { btn.classList.toggle('on', on); btn.innerHTML = icon(on ? 'check' : 'plus'); btn.title = on ? 'Listemden çıkar' : 'Listeme ekle'; }
   toast(on ? `${icon('check')} <b>${esc(it.t)}</b> listene eklendi` : `<b>${esc(it.t)}</b> listenden çıkarıldı`);
   if (S.view === 'list' || S.view === 'home') softRender();
@@ -582,9 +602,11 @@ function runSearch(q) {
   };
   const hits = [...S.titles, ...S.series].map(it => [it, score(it)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).map(x => x[0]);
   const cols = S.cols.filter(c => terms.every(w => fold(c.name).includes(w)));
-  box.innerHTML = `<div class="search-hint">${hits.length ? `${hits.length} sonuç` : ''}</div>
+  box.innerHTML = `<div class="search-hint">${hits.length ? `Kütüphanede ${hits.length} sonuç` : 'Kütüphanede sonuç yok'}</div>
     ${cols.length ? `<div class="grid cols" style="padding-bottom:20px">${cols.map(collectionCard).join('')}</div>` : ''}
-    <div class="grid">${hits.slice(0, 120).map(it => posterCard(it, { caption: true })).join('') || emptyState(`“${q}” için sonuç yok`, 'Farklı bir yazım ya da orijinal adıyla aramayı deneyin.', 'search')}</div>`;
+    ${hits.length ? `<div class="grid">${hits.slice(0, 120).map(it => posterCard(it, { caption: true })).join('')}</div>` : ''}
+    <div id="online-hits"></div>`;
+  searchOnline(q);
 }
 
 /* ================================================================ settings */
@@ -1334,6 +1356,379 @@ function playerKeys(e) {
   if (map[k]) { e.preventDefault(); map[k](); showUI(); }
 }
 
+/* ================================================================ online (TMDb catalog, frameXTV player) */
+// Titles that aren't in the library: listed from TMDb, played in frameXTV's iframe player by TMDb id. Keys are
+// 'om:<tmdb>' (movie) and 'os:<tmdb>' (series); progress keys 'om:<tmdb>' and 'oe:<tmdb>:<season>:<episode>'.
+const OL = { home: null, loading: false, error: false, items: new Map(), details: new Map(), q: '', searchT: 0, pageT: 0 };
+
+function onlineItem(d) {
+  const kind = d.kind === 's' || d.kind === 'os' ? 'os' : 'om';
+  const it = { ...d, kind, key: `${kind}:${d.tm}`, online: true };
+  if (!OL.items.has(it.key) || d.rec) OL.items.set(it.key, it);
+  return it;
+}
+const localOf = it => it.kind === 'om' ? S.tmMovie.get(it.tm) : it.kind === 'os' ? S.tmSeries.get(it.tm) : null;
+
+function nextOnlineEpisode(seasons, s, e) {
+  const sizes = new Map(seasons || []);
+  if (e < (sizes.get(s) || 0)) return [s, e + 1];
+  const later = [...sizes.keys()].filter(n => n > s && sizes.get(n)).sort((a, b) => a - b);
+  return later.length ? [later[0], 1] : null;
+}
+
+function onlineContinueCard(c) {
+  const src = c.ob ? `/img/tmdb/w780${c.ob}` : c.op ? `/img/tmdb/w342${c.op}` : '';
+  const spec = c.kind === 'om' ? `m:${c.tm}` : `s:${c.tm}:${c.s}:${c.e}`;
+  const pct = c.dur ? clamp(c.pos / c.dur * 100, 2, 100) : 0;
+  return `<div class="card land" tabindex="0" role="button" data-oplay="${spec}" aria-label="${esc(c.title)}">
+    <div class="art">${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('ok')" onerror="this.remove()">` : `<div class="ph" style="--h:${hue(c.title)}">${esc(c.title)}</div>`}
+      ${c.up_next ? '<span class="flag new">SIRADAKİ</span>' : '<span class="flag">ONLINE</span>'}
+      <button class="x" data-forget="${esc(c.pkey)}" title="Listeden kaldır" aria-label="Kaldır">${icon('x')}</button>
+      <div class="play-glyph">${icon('play', 'fill')}</div>
+      <div class="shade"><strong>${esc(c.title)}</strong><span>${esc(c.sub || '')}${c.dur ? `${c.sub ? ' · ' : ''}${fmtLeft(c.pos, c.dur)}` : ''}</span></div>
+      ${pct ? `<div class="pbar progress-line"><i style="width:${pct}%"></i></div>` : ''}
+    </div></div>`;
+}
+
+/* ---------------- the Online tab */
+async function renderOnline() {
+  const view = $('#view');
+  const head = `<div class="page-head"><h1>Online</h1><span class="count">Kütüphanende olmayan film ve diziler</span></div>`;
+  if (!OL.home) {
+    if (OL.error) {
+      view.innerHTML = head + `<div class="grid">${emptyState('Online katalog yüklenemedi', 'İnternet bağlantısını ve TMDb anahtarını kontrol edin.', 'globe')}</div>
+        <div style="text-align:center;margin-top:-60px"><button class="btn btn-ghost" data-action="online-retry">${icon('refresh')}Tekrar Dene</button></div>`;
+      return;
+    }
+    view.innerHTML = head + `<div style="height:50vh;display:grid;place-items:center"><div class="spin" style="width:40px;height:40px;border-width:3px"></div></div>`;
+    if (OL.loading) return;
+    OL.loading = true;
+    try {
+      OL.home = await api.get('/api/online/home');
+      if (OL.home.embed) S.embed = OL.home.embed;
+    } catch { OL.error = true; }
+    OL.loading = false;
+    if (S.view === 'online') renderOnline();
+    return;
+  }
+  const rows = OL.home.rows.map(r => ({ title: r.title, items: r.items.map(onlineItem) }));
+  const pool = rows.slice(0, 2).flatMap(r => r.items).filter(it => it.ob && it.p && !localOf(it));
+  const picks = shuffle(pool, daySeed + (Date.now() / 36e5 | 0)).slice(0, 6);
+  const cont = S.cont.filter(c => c.kind === 'om' || c.kind === 'oe');
+  const list = [...S.mylist].filter(k => /^o[ms]:/.test(k)).map(itemByKey).filter(Boolean);
+  let html = heroHTML(picks) + `<div class="rows">
+    <div class="o-search"><label class="o-search-box">${icon('search')}<input id="online-q" type="search" placeholder="Online'da film veya dizi ara…" autocomplete="off" spellcheck="false" value="${esc(OL.q)}"></label></div>
+    <div id="online-results"></div><div id="online-rows">`;
+  html += row('İzlemeye Devam Et', cont, { kind: 'cont' });
+  html += row('Listem', list);
+  rows.forEach(r => { html += row(r.title, r.items); });
+  html += '</div></div>';
+  view.innerHTML = html;
+  wireRails(view);
+  startHero(picks);
+  const inp = $('#online-q');
+  inp.addEventListener('input', () => { clearTimeout(OL.pageT); OL.pageT = setTimeout(() => onlinePageSearch(inp.value), 350); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(OL.pageT); onlinePageSearch(inp.value); } });
+  if (OL.q) onlinePageSearch(OL.q);
+}
+
+async function onlinePageSearch(q) {
+  OL.q = q.trim();
+  const res = $('#online-results'), rowsBox = $('#online-rows');
+  if (!res) return;
+  if (OL.q.length < 2) { res.innerHTML = ''; rowsBox.hidden = false; return; }
+  rowsBox.hidden = true;
+  res.innerHTML = '<div style="padding:40px;display:grid;place-items:center"><div class="spin"></div></div>';
+  let list;
+  try { list = await api.get('/api/online/search?q=' + encodeURIComponent(OL.q)); } catch { list = null; }
+  if (OL.q !== q.trim() || !$('#online-results')) return;
+  res.innerHTML = !list ? `<div class="grid">${emptyState('Arama yapılamadı', 'İnternet bağlantısını kontrol edin.', 'globe')}</div>`
+    : `<div class="grid">${list.map(d => posterCard(onlineItem(d), { caption: true })).join('') || emptyState(`“${OL.q}” için sonuç yok`, 'Farklı bir yazım ya da orijinal adıyla aramayı deneyin.', 'search')}</div>`;
+}
+
+// The search overlay also lists online matches under the library's.
+function searchOnline(q) {
+  clearTimeout(OL.searchT);
+  if (q.trim().length < 2) return;
+  OL.searchT = setTimeout(async () => {
+    let list;
+    try { list = await api.get('/api/online/search?q=' + encodeURIComponent(q.trim())); } catch { return; }
+    const box = $('#online-hits');
+    if (!box || $('#search-input').value !== q || !list.length) return;
+    box.innerHTML = `<div class="search-hint">Online · ${list.length} sonuç</div><div class="grid">${list.slice(0, 40).map(d => posterCard(onlineItem(d), { caption: true })).join('')}</div>`;
+  }, 400);
+}
+
+/* ---------------- online detail */
+async function onlineTitle(kind, tm) {
+  const data = await api.get(`/api/online/title/${kind}/${tm}`);
+  OL.details.set(`${kind}:${tm}`, data);
+  if (data.embed) S.embed = data.embed;
+  return data;
+}
+
+async function openOnlineDetail(key) {
+  const [k, tm] = key.split(':');
+  const kind = k === 'om' ? 'm' : 's';
+  const el = $('#detail');
+  if (!el.classList.contains('open')) {
+    el.classList.add('open');
+    pushOverlay('detail', () => { el.classList.remove('open'); detailKey = null; });
+  }
+  detailKey = key;
+  $('#detail-scroll').scrollTop = 0;
+  const base = itemByKey(key);
+  if (base) renderOnlineDetail(base, null);
+  else $('#detail-sheet').innerHTML = `<button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button><div style="padding:120px;display:grid;place-items:center"><div class="spin"></div></div>`;
+  let data;
+  try { data = await onlineTitle(kind, tm); } catch {
+    if (detailKey === key && !base) $('#detail-sheet').innerHTML = `<button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>${emptyState('Bilgiler alınamadı', 'İnternet bağlantısını kontrol edin.', 'globe')}`;
+    return;
+  }
+  if (detailKey !== key) return;
+  const it = onlineItem(data);
+  renderOnlineDetail(it, data);
+  if (kind === 's') loadOnlineSeason(it, data);
+}
+
+function renderOnlineDetail(it, data) {
+  const tm = it.tm;
+  const local = data?.local || (localOf(it)?.key ?? '');
+  let actions, resumeNote = '';
+  const localBtn = local ? `<button class="btn btn-ghost" data-open="${local}">${icon('film')}Kütüphanede Aç</button>` : '';
+  if (it.kind === 'om') {
+    const prog = data?.progress;
+    const resume = prog && !prog[2] && prog[0] > 30;
+    actions = `<button class="btn btn-play" data-oplay="m:${tm}">${icon('play', 'fill')}${resume ? 'Devam Et' : 'Oynat'}</button>
+      ${resume ? `<button class="btn btn-ghost" data-oplay="m:${tm}" data-from="0">${icon('refresh')}Baştan Başla</button>` : ''}${listButton(it)}${localBtn}`;
+    if (resume && prog[1]) resumeNote = `<div class="resume-note"><div class="progress-line"><i style="width:${clamp(prog[0] / prog[1] * 100, 2, 100)}%"></i></div>${fmtLeft(prog[0], prog[1])}</div>`;
+  } else {
+    actions = `<button class="btn btn-play" id="series-play" data-oplay="">${icon('play', 'fill')}Oynat</button>${listButton(it)}${localBtn}`;
+  }
+  const extra = [];
+  if (it.kind === 'om' && it.rt) extra.push(`<span>${fmtRuntime(it.rt)}</span>`);
+  if (it.kind === 'os' && it.seasons?.length) extra.push(`<span>${it.seasons.length} sezon</span>`);
+  extra.push('<span class="badge">Online</span>');
+  const meta = [metaLine(it), ...extra].filter(Boolean).join('<i class="sep"></i>');
+  const facts = [];
+  if (it.ot && fold(it.ot) !== fold(it.t)) facts.push(`<div>Orijinal ad: <b>${esc(it.ot)}</b></div>`);
+  if (genresOf(it).length) facts.push(`<div>Türler: <b>${esc(genresOf(it).join(', '))}</b></div>`);
+  if (data?.date) facts.push(`<div>${it.kind === 'os' ? 'İlk yayın' : 'Vizyon'}: <b>${new Date(data.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>`);
+  facts.push('<div>Kaynak: <b>frameXTV (internet)</b></div>');
+  const rec = (data?.rec || []).map(onlineItem);
+  $('#detail-sheet').innerHTML = `
+    <button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>
+    ${detailHero(it, it.t, actions, meta)}
+    <div class="d-body">
+      <div class="d-grid"><div>${data?.tagline ? `<p class="pp-tagline" style="margin:14px 0 0">${esc(data.tagline)}</p>` : ''}<p class="plot">${esc(it.p || 'Bu içerik için açıklama bulunamadı.')}</p>${resumeNote}</div><div class="facts">${facts.join('')}</div></div>
+      ${it.kind === 'os' ? `<div class="section" id="episodes"><div class="section-head"><h3>Bölümler</h3></div><div class="eps">${data ? '<div class="spin" style="margin:20px auto"></div>' : ''}</div></div>` : ''}
+      ${rec.length ? `<div class="section"><div class="section-head"><h3>Benzer İçerikler</h3></div><div class="grid">${rec.map(x => posterCard(x, { caption: true })).join('')}</div></div>` : ''}
+    </div>`;
+}
+
+// Where "Play" starts a series: after the last episode watched (or in it, if unfinished), else the first one.
+function onlineSeriesTarget(data) {
+  const seasons = data.seasons || [];
+  let last = null;
+  for (const [k, p] of Object.entries(data.progress || {})) if (!last || p[3] > last.p[3]) last = { k, p };
+  if (!last) return { s: seasons[0][0], e: 1, started: false };
+  const [s, e] = last.k.split(':').map(Number);
+  const nxt = last.p[2] ? nextOnlineEpisode(seasons, s, e) : null;
+  return nxt ? { s: nxt[0], e: nxt[1], started: true } : { s, e, started: true, resume: !last.p[2] && last.p[0] > 30 };
+}
+
+async function loadOnlineSeason(it, data, season) {
+  const box = $('#episodes');
+  if (!box) return;
+  const seasons = data.seasons || [];
+  if (!seasons.length) { box.innerHTML = `<div class="section-head"><h3>Bölümler</h3></div>` + emptyState('Bölüm bilgisi yok', ''); return; }
+  const target = onlineSeriesTarget(data);
+  const cur = season ?? target.s;
+  const playBtn = $('#series-play');
+  if (playBtn) {
+    playBtn.dataset.oplay = `s:${it.tm}:${target.s}:${target.e}`;
+    playBtn.innerHTML = `${icon('play', 'fill')}${target.resume ? 'Devam Et' : target.started ? 'Oynat' : 'İzlemeye Başla'} · S${target.s}:B${target.e}`;
+  }
+  const seasonSel = seasons.length > 1 ? `<label class="select"><select id="season-sel">${seasons.map(([n]) => `<option value="${n}"${n === cur ? ' selected' : ''}>Sezon ${n}</option>`).join('')}</select></label>` : `<span style="color:var(--dim)">Sezon ${cur}</span>`;
+  const head = `<div class="section-head"><h3>Bölümler</h3>${seasonSel}</div>`;
+  const wire = () => { const sel = $('#season-sel'); if (sel) sel.onchange = () => loadOnlineSeason(it, data, +sel.value); };
+  box.innerHTML = head + '<div class="eps"><div class="spin" style="margin:20px auto"></div></div>';
+  wire();
+  let eps;
+  try { eps = await api.get(`/api/online/season/${it.tm}/${cur}`); } catch { eps = null; }
+  if (detailKey !== it.key || !$('#episodes')) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const prog = data.progress || {};
+  box.innerHTML = head + (!eps ? emptyState('Bölümler alınamadı', 'İnternet bağlantısını kontrol edin.', 'globe') : `<div class="eps">${eps.map(e => {
+    const p = prog[`${cur}:${e.n}`];
+    const fin = p && p[2];
+    const pct = fin ? 100 : p && p[1] ? clamp(p[0] / p[1] * 100, 2, 100) : 0;
+    const soon = e.air && e.air > today;
+    const thumb = e.still ? `/img/tmdb/w300${e.still}` : it.ob ? `/img/tmdb/w300${it.ob}` : '';
+    const now = target.s === cur && target.e === e.n;
+    return `<div class="ep${now ? ' now' : ''}${soon ? ' soon' : ''}" tabindex="0" role="button" ${soon ? '' : `data-oplay="s:${it.tm}:${cur}:${e.n}"`}>
+      <div class="num">${e.n}</div>
+      <div class="thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy" onload="this.classList.add('ok')">` : ''}<div class="play-glyph"><span>${icon('play', 'fill')}</span></div>
+        ${pct ? `<div class="pbar progress-line"><i style="width:${pct}%"></i></div>` : ''}</div>
+      <div><h4><span>${esc(e.name || `${e.n}. Bölüm`)}</span><small>${soon ? `Yayın: ${new Date(e.air).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}` : fin ? `<span class="done">${icon('check')}İzlendi</span>` : e.rt ? e.rt + ' dk' : ''}</small></h4>
+        <p>${esc(e.ov)}</p></div></div>`;
+  }).join('')}</div>`);
+  wire();
+}
+
+/* ---------------- online player: frameXTV's iframe, steered with postMessage */
+const OP = { open: false, kind: '', tm: 0, s: 0, e: 0, info: null, t: 0, d: 0, lastAdvance: 0, lastSave: 0, ended: false,
+  guessPlaying: true, nextT: 0 };
+const oFrame = () => $('#o-frame');
+
+async function playOnline(spec, opts = {}) {
+  const [k, tmS, sS, eS] = spec.split(':');
+  const kind = k === 'm' ? 'm' : 's', tm = +tmS;
+  let info = OL.details.get(`${kind}:${tm}`);
+  if (!info) {
+    try { info = await onlineTitle(kind, tm); } catch { return toast('İçerik bilgisi alınamadı. İnternet bağlantısını kontrol edin.'); }
+  }
+  let s = +sS || 0, e = +eS || 0;
+  if (kind === 's' && !s) {
+    if (!info.seasons?.length) return toast('Bu dizinin bölüm bilgisi yok.');
+    ({ s, e } = onlineSeriesTarget(info));
+  }
+  const prog = kind === 'm' ? info.progress : info.progress?.[`${s}:${e}`];
+  const start = opts.from !== undefined ? opts.from : prog && !prog[2] && prog[0] > 30 ? prog[0] : 0;
+  const el = $('#oplayer');
+  if (OP.open) saveOnline(true);
+  else {
+    OP.open = true;
+    el.classList.add('open');
+    pushOverlay('oplayer', closeOnlineNow);
+  }
+  clearTimeout(OP.nextT);
+  Object.assign(OP, { kind, tm, s, e, info, t: start, d: 0, lastAdvance: 0, lastSave: Date.now(), ended: false, guessPlaying: true });
+  const sub = kind === 's' ? `S${s}:B${e}` : (info.y || '');
+  $('#o-title').textContent = info.t;
+  $('#o-sub').textContent = sub;
+  $('#o-next').hidden = !(kind === 's' && nextOnlineEpisode(info.seasons, s, e));
+  document.title = `${info.t} · Homeflix`;
+  const params = new URLSearchParams({ autoplay: '1' });
+  if (start > 0) params.set('t', String(Math.floor(start)));
+  params.set('title', kind === 's' ? `${info.t} · ${sub}` : info.t);
+  if (info.ob) params.set('poster', `https://image.tmdb.org/t/p/w1280${info.ob}`);
+  oFrame().src = `${S.embed}/${tm}${kind === 's' ? `/${s}/${e}` : ''}?${params}`;
+  if (start > 30) toast(`Kaldığın yerden devam ediliyor · ${fmtTime(start)}`);
+  try { document.activeElement?.blur(); } catch {}
+}
+
+function onlineKey() { return OP.kind === 'm' ? `om:${OP.tm}` : `oe:${OP.tm}:${OP.s}:${OP.e}`; }
+
+function saveOnline(beacon = false, finished = false) {
+  if (!OP.info || !OP.d || (!finished && OP.t < 5)) return;
+  OP.lastSave = Date.now();
+  const body = JSON.stringify({ key: onlineKey(), position: finished ? OP.d : OP.t, duration: OP.d });
+  if (beacon && navigator.sendBeacon) navigator.sendBeacon('/api/progress', new Blob([body], { type: 'application/json' }));
+  else fetch('/api/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true }).catch(() => {});
+}
+
+function closeOnlineNow() {
+  saveOnline(true);
+  OP.open = false;
+  clearTimeout(OP.nextT);
+  oFrame().src = 'about:blank';
+  $('#oplayer').classList.remove('open');
+  document.title = 'Homeflix';
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  OL.details.delete(`${OP.kind}:${OP.tm}`);  // its progress changed
+  setTimeout(async () => {
+    await loadUser().catch(() => {});
+    if (detailKey && /^o[ms]:/.test(detailKey)) openOnlineDetail(detailKey);
+    else if (detailKey) { const it = S.byKey.get(detailKey); if (it && it.kind !== 'c') { renderDetail(it); if (it.kind === 's') loadEpisodes(it); } }
+    else softRender();
+  }, 400);
+}
+
+function onlineEnded() {
+  if (OP.ended) return;
+  OP.ended = true;
+  saveOnline(false, true);
+  const nxt = OP.kind === 's' && nextOnlineEpisode(OP.info.seasons, OP.s, OP.e);
+  if (!nxt) return;
+  toast(`${icon('play', 'fill')} Sonraki bölüm başlıyor · S${nxt[0]}:B${nxt[1]}`, 4000);
+  OP.nextT = setTimeout(() => { if (OP.open) playOnline(`s:${OP.tm}:${nxt[0]}:${nxt[1]}`, { from: 0 }); }, 5000);
+}
+
+function playNextOnline() {
+  const nxt = OP.kind === 's' && nextOnlineEpisode(OP.info.seasons, OP.s, OP.e);
+  if (!nxt) return;
+  saveOnline(false, true);
+  playOnline(`s:${OP.tm}:${nxt[0]}:${nxt[1]}`, { from: 0 });
+}
+
+function postToPlayer(msg) { try { oFrame().contentWindow.postMessage(msg, '*'); } catch {} }
+
+// Remote, keyboard and media keys while the online player is open. The player only reports time, so "playing"
+// means time moved in the last 1.5 s; before any report, play and pause alternate.
+function onlineCommand(cmd) {
+  if (!OP.open) return;
+  const playing = OP.lastAdvance ? Date.now() - OP.lastAdvance < 1500 : OP.guessPlaying;
+  if (cmd === 'toggle') { postToPlayer({ action: playing ? 'pause' : 'play' }); OP.guessPlaying = !playing; }
+  else if (cmd === 'play') postToPlayer({ action: 'play' });
+  else if (cmd === 'pause') postToPlayer({ action: 'pause' });
+  else if (cmd === 'back') postToPlayer({ action: 'seekBy', seconds: -10 });
+  else if (cmd === 'fwd') postToPlayer({ action: 'seekBy', seconds: 10 });
+  else if (cmd === 'next') playNextOnline();
+}
+
+function onlineAction(a) {
+  if (a === 'close') return back();
+  if (a === 'next') return playNextOnline();
+  if (a === 'fullscreen') {
+    const f = oFrame();
+    if (document.fullscreenElement) return document.exitFullscreen().catch(() => {});
+    if (f.requestFullscreen) return f.requestFullscreen().catch(() => { if (window.pywebview?.api) window.pywebview.api.toggle_fullscreen(); });
+    if (window.pywebview?.api) window.pywebview.api.toggle_fullscreen();
+  }
+}
+
+window.addEventListener('message', ev => {
+  if (!OP.open) return;
+  let embedOrigin = '';
+  try { embedOrigin = new URL(S.embed).origin; } catch {}
+  if (ev.source !== oFrame().contentWindow && ev.origin !== embedOrigin) return;
+  const d = ev.data;
+  if (!d || typeof d !== 'object' || typeof d.event !== 'string') return;
+  if (d.event === 'frameXTV:timeupdate') {
+    const t = +d.currentTime || 0, dur = +d.duration || 0;
+    if (t !== OP.t) OP.lastAdvance = Date.now();
+    OP.t = t;
+    if (dur > 0) OP.d = dur;
+    if (Date.now() - OP.lastSave > 10000) saveOnline();
+    if (OP.d && OP.d - t < 1.5 && t > 60) onlineEnded();
+  } else if (/ended$/i.test(d.event)) onlineEnded();
+});
+
+window.addEventListener('keydown', e => {
+  if (!OP.open) return;
+  const a = document.activeElement;
+  const inBar = a && a.closest && a.closest('.o-bar');
+  const k = e.key;
+  if (inBar) {
+    // Down from the top bar hands the remote back to the player.
+    if (k === 'ArrowDown') { e.preventDefault(); e.stopImmediatePropagation(); a.blur(); a.classList.remove('hf-focus'); }
+    return;
+  }
+  const media = MEDIA_KEYS[k.toLowerCase()] || MEDIA_CODES[e.keyCode];
+  const cmd = media || { ArrowLeft: 'back', ArrowRight: 'fwd', ' ': 'toggle', Enter: 'toggle', k: 'toggle', n: 'next' }[k]
+    || (e.keyCode === 23 ? 'toggle' : '');
+  if (k === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); return back(); }
+  if (k === 'ArrowUp') { e.preventDefault(); e.stopImmediatePropagation(); return $('#oplayer .o-bar [data-o]')?.focus(); }
+  if (k === 'f') { e.preventDefault(); return onlineAction('fullscreen'); }
+  if (!cmd) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  onlineCommand(cmd);
+}, true);
+document.addEventListener('visibilitychange', () => { if (document.hidden && OP.open) saveOnline(true); });
+window.addEventListener('pagehide', () => { if (OP.open) saveOnline(true); });
+
 /* ================================================================ global events */
 function shuffleMovie() {
   const pool = randPool();
@@ -1346,12 +1741,20 @@ function shuffleMovie() {
 document.addEventListener('click', async e => {
   const t = e.target;
   if (t.closest('#player')) return;
+  if (t.closest('#oplayer')) { const b = t.closest('[data-o]'); if (b) onlineAction(b.dataset.o); return; }
   const forget = t.closest('[data-forget]');
   if (forget) {
     e.stopPropagation();
     await fetch('/api/progress/' + encodeURIComponent(forget.dataset.forget), { method: 'DELETE' });
     await loadUser();
     return softRender();
+  }
+  const op = t.closest('[data-oplay]');
+  if (op) {
+    e.stopPropagation();
+    if (!op.dataset.oplay) return;
+    if ($('#search').classList.contains('open')) { back(); await new Promise(r => setTimeout(r, 30)); }
+    return playOnline(op.dataset.oplay, op.dataset.from !== undefined ? { from: +op.dataset.from } : {});
   }
   const pl = t.closest('[data-play]');
   if (pl && pl.dataset.play) {
@@ -1380,6 +1783,7 @@ document.addEventListener('click', async e => {
     if (a === 'settings') return openSettings();
     if (a === 'shuffle') return shuffleMovie();
     if (a === 'kids-surprise') return kidsSurprise();
+    if (a === 'online-retry') { OL.error = false; return renderOnline(); }
     return settingsAction(a);
   }
   if (t.hasAttribute('data-dismiss')) back();
@@ -1387,11 +1791,12 @@ document.addEventListener('click', async e => {
 
 document.addEventListener('keydown', e => {
   if (P.open) return playerKeys(e);
+  if (OP.open) return;
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
   if (e.key === 'Escape' && stack.length) { e.preventDefault(); return back(); }
   if (typing) return;
   if (e.key === '/' || (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); return openSearch(); }
-  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.matches('[data-open], [data-play]')) {
+  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.matches('[data-open], [data-play], [data-oplay]')) {
     e.preventDefault(); document.activeElement.click();
   }
 });

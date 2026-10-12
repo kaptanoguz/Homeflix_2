@@ -696,14 +696,6 @@ def img_still(eid):
     return _send_image(media.remote_image(r['still'] if r else None, 'w300'))
 
 
-@app.route('/img/tmdb/<size>/<name>')
-def img_tmdb(size, name):
-    if size not in ('w185', 'w300', 'w342', 'w500', 'w780', 'w1280') or \
-            not re.fullmatch(r'[A-Za-z0-9_-]{4,64}\.(jpg|jpeg|png)', name):
-        abort(404)
-    return _send_image(media.remote_image('/' + name, size))
-
-
 @app.route('/img/person/<name>')
 def img_person(name):
     if not re.fullmatch(r'[A-Za-z0-9_-]{4,64}\.(jpg|jpeg|png)', name):

@@ -115,7 +115,9 @@
     <button class="p-btn" data-o="next" id="o-next" title="Sonraki bölüm (N)" aria-label="Sonraki bölüm" hidden><svg class="icon fill"><use href="#i-next"/></svg></button>
     <button class="p-btn" data-o="fullscreen" title="Tam ekran (F)" aria-label="Tam ekran"><svg class="icon"><use href="#i-expand"/></svg></button>
   </div>
-  <iframe id="o-frame" title="Online oynatıcı" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="origin"></iframe>
+  <!-- sandbox without allow-popups / allow-top-navigation: the player's ads can't open new tabs or take over the page -->
+  <iframe id="o-frame" title="Online oynatıcı" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="origin"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock allow-orientation-lock"></iframe>
 </div>
 
 <div class="toasts" id="toasts"></div>

@@ -461,7 +461,7 @@ function detailHero(it, title, actions, metaHTML) {
   const kind = it.kind === 'c' ? 'c' : it.kind;
   const bdSrc = it.online ? (it.ob ? `${TMDB_IMG}w1280${it.ob}` : '') : it.kind === 'c' ? (it.backdrop ? img('c', it.id, 'backdrop', 1280) : (() => { const f = it.titles.find(t => t.bd); return f ? img('m', f.bdId, 'backdrop', 1280) : ''; })())
     : it.bd ? img(kind, kind === 'm' ? it.bdId : it.id, 'backdrop', 1280) : '';
-  const posterSrc = it.online ? (it.op ? `${TMDB_IMG}w500${it.op}` : '') : it.kind !== 'c' && it.ph ? img(kind, it.id, 'poster', 500) : '';
+  const posterSrc = it.online ? (it.op ? `${TMDB_IMG}w342${it.op}` : '') : it.kind !== 'c' && it.ph ? img(kind, it.id, 'poster', 500) : '';
   const fallback = posterSrc ? `<img class="blurposter" src="${posterSrc}" alt="">` : `<div class="ph" style="--h:${hue(title)}"></div>`;
   return `<div class="d-hero">${bdSrc ? `<img src="${bdSrc}" alt="" onload="this.classList.add('ok')" onerror="this.outerHTML=this.dataset.fb" data-fb='${esc(fallback)}'>` : fallback}
     <div class="d-head"><h1>${esc(title)}</h1>${metaHTML ? `<div class="meta" style="margin-bottom:18px">${metaHTML}</div>` : ''}<div class="actions">${actions}</div></div></div>`;
@@ -1359,8 +1359,8 @@ function playerKeys(e) {
 /* ================================================================ online (TMDb catalog, frameXTV player) */
 // Titles that aren't in the library: listed from TMDb, played in frameXTV's iframe player by TMDb id. Keys are
 // 'om:<tmdb>' (movie) and 'os:<tmdb>' (series); progress keys 'om:<tmdb>' and 'oe:<tmdb>:<season>:<episode>'.
-// Online images come straight from TMDb to each device, not through the Homeflix server.
-const TMDB_IMG = 'https://image.tmdb.org/t/p/';
+// Online images come through the Homeflix server, which keeps a copy, so devices without internet see them too.
+const TMDB_IMG = '/img/tmdb/';
 const OL = { home: null, loading: false, error: false, items: new Map(), details: new Map(), q: '', searchT: 0, pageT: 0 };
 
 function onlineItem(d) {
@@ -1379,7 +1379,7 @@ function nextOnlineEpisode(seasons, s, e) {
 }
 
 function onlineContinueCard(c) {
-  const src = c.ob ? `${TMDB_IMG}w780${c.ob}` : c.op ? `${TMDB_IMG}w342${c.op}` : '';
+  const src = c.ob ? `${TMDB_IMG}w1280${c.ob}` : c.op ? `${TMDB_IMG}w342${c.op}` : '';
   const spec = c.kind === 'om' ? `m:${c.tm}` : `s:${c.tm}:${c.s}:${c.e}`;
   const pct = c.dur ? clamp(c.pos / c.dur * 100, 2, 100) : 0;
   return `<div class="card land" tabindex="0" role="button" data-oplay="${spec}" aria-label="${esc(c.title)}">
@@ -1614,7 +1614,7 @@ async function playOnline(spec, opts = {}) {
   const params = new URLSearchParams({ autoplay: '1' });
   if (start > 0) params.set('t', String(Math.floor(start)));
   params.set('title', kind === 's' ? `${info.t} · ${sub}` : info.t);
-  if (info.ob) params.set('poster', `${TMDB_IMG}w1280${info.ob}`);
+  if (info.ob) params.set('poster', `https://image.tmdb.org/t/p/w1280${info.ob}`);
   oFrame().src = `${S.embed}/${tm}${kind === 's' ? `/${s}/${e}` : ''}?${params}`;
   if (start > 30) toast(`Kaldığın yerden devam ediliyor · ${fmtTime(start)}`);
   try { document.activeElement?.blur(); } catch {}

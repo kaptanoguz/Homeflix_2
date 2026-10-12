@@ -7,7 +7,7 @@ from homeflix.db import init_db
 
 init_db()
 
-from homeflix import library, metadata, state  # noqa: E402
+from homeflix import library, metadata, online, state  # noqa: E402
 from homeflix.api import app, lan_ips, settings  # noqa: E402
 from homeflix.config import PORT  # noqa: E402
 
@@ -73,6 +73,7 @@ def main():
         return
     metadata.start()
     threading.Thread(target=startup_jobs, daemon=True).start()
+    threading.Thread(target=online.warm_loop, daemon=True).start()
     if headless:
         serve()
         return

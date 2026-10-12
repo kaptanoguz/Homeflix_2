@@ -1,13 +1,15 @@
 """Online tab: a TMDb catalog of movies and series that play through frameXTV's iframe player (by TMDb id).
 
-Nothing here downloads video; the browser plays the embed directly. This module only lists what exists on TMDb,
-remembers the titles someone opened (for Continue Watching and My List), and works out the next episode."""
+Nothing here downloads video; the browser plays the embed directly. This module lists what exists on TMDb, keeps the
+catalog and its posters on the server so devices without internet still see them, remembers the titles someone
+opened (for Continue Watching and My List), and works out the next episode."""
 import json
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from . import metadata
+from . import media, metadata
 from .config import TMDB_KEY
 from .db import session
 
@@ -109,7 +111,30 @@ def _results(path, kind, **params):
     return [item(r, kind) for r in d.get('results') or [] if wanted(r)]
 
 
+HOME_KEY = 'online_home'
+# Card posters and hero / detail backdrops; the web app asks for exactly these sizes.
+POSTER_SIZE, BACKDROP_SIZE = 'w342', 'w1280'
+PREFETCH_PAUSE = 0.5
+
+
+def _load_home():
+    """The catalog saved by the last successful fetch, so it survives a restart without internet."""
+    with session() as c:
+        r = c.execute("SELECT value FROM config WHERE key = ?", (HOME_KEY,)).fetchone()
+    try:
+        saved = json.loads(r['value']) if r else None
+        return (saved['at'], saved['rows']) if saved else None
+    except (ValueError, KeyError, TypeError):
+        return None
+
+
 def home():
+    with _cache_lock:
+        if 'home' not in _cache:
+            saved = _load_home()
+            if saved:
+                _cache['home'] = saved
+
     def fetch():
         with ThreadPoolExecutor(6) as pool:
             jobs = [(title, pool.submit(_results, path, kind, **params)) for title, path, params, kind in HOME_ROWS]
@@ -124,8 +149,54 @@ def home():
                     rows.append({'title': title, 'items': items})
         if failed == len(HOME_ROWS):
             raise metadata.NetworkError('TMDb')
+        with session() as c:
+            c.execute("INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+                      (HOME_KEY, json.dumps({'at': time.time(), 'rows': rows}, ensure_ascii=False)))
         return rows
     return _cached('home', HOME_MAX_AGE, fetch)
+
+
+def prefetch_images(rows):
+    """Downloads every poster and backdrop in the catalog to the server. It runs in the background one image at a
+    time with a short pause between them, so playback and the web app's own image requests aren't slowed down.
+    Already-saved images are skipped. Returns how many were missing and fetched."""
+    fetched = 0
+    for r in rows:
+        for it in r['items']:
+            for path, size in ((it.get('op'), POSTER_SIZE), (it.get('ob'), BACKDROP_SIZE)):
+                if path and not os.path.exists(media.image_path(path, size)):
+                    if media.remote_image(path, size):
+                        fetched += 1
+                    time.sleep(PREFETCH_PAUSE)
+    return fetched
+
+
+OFFLINE_RETRY = 600
+
+
+def _home_age():
+    with _cache_lock:
+        hit = _cache.get('home')
+    return time.time() - hit[0] if hit else float('inf')
+
+
+def warm_loop():
+    """Keeps the catalog and its images on the server. Refreshes at startup and every HOME_MAX_AGE; while TMDb can't
+    be reached (no internet) it tries again every OFFLINE_RETRY, so changes arrive soon after the server is online."""
+    time.sleep(20)
+    while True:
+        try:
+            if TMDB_KEY:
+                n = prefetch_images(home())
+                if n:
+                    print(f"Online: {n} poster indirildi")
+        except Unavailable:
+            pass
+        except Exception as e:
+            print(f"Online katalog hatası: {e}")
+        # A stale catalog after home() means the refresh failed (home() then serves the saved copy).
+        online_now = _home_age() < HOME_MAX_AGE
+        time.sleep(HOME_MAX_AGE - _home_age() + 30 if online_now else OFFLINE_RETRY)
 
 
 def search(q):

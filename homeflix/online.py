@@ -26,7 +26,8 @@ HOME_ROWS = [
     ('Trend Diziler', '/trending/tv/week', {}, 's'),
     ('Vizyondakiler', '/movie/now_playing', {'region': 'TR'}, 'm'),
     ('Popüler Filmler', '/movie/popular', {}, 'm'),
-    ('Popüler Diziler', '/tv/popular', {}, 's'),
+    # /tv/popular is full of talk shows and untranslated imports; asking for well-voted series cleans it up.
+    ('Popüler Diziler', '/discover/tv', {'sort_by': 'popularity.desc', 'vote_count.gte': 200}, 's'),
     ('Türk Filmleri', '/discover/movie', {'with_original_language': 'tr', 'sort_by': 'popularity.desc'}, 'm'),
     ('Türk Dizileri', '/discover/tv', {'with_original_language': 'tr', 'sort_by': 'popularity.desc'}, 's'),
     ('En Yüksek Puanlı Filmler', '/movie/top_rated', {}, 'm'),
@@ -38,6 +39,9 @@ HOME_ROWS = [
     ('Animasyon', '/discover/movie', {'with_genres': 16, 'sort_by': 'popularity.desc'}, 'm'),
     ('Belgesel', '/discover/movie', {'with_genres': 99, 'sort_by': 'popularity.desc'}, 'm'),
 ]
+
+# News, reality and talk shows aren't what the tab is for; adult titles never show.
+SKIP_GENRES = {10763, 10764, 10767}
 
 HOME_MAX_AGE = 6 * 3600
 TITLE_MAX_AGE = 24 * 3600
@@ -92,9 +96,17 @@ def item(d, kind):
             'ob': d.get('backdrop_path') or ''}
 
 
+def wanted(r):
+    return bool(r.get('poster_path')) and not r.get('adult') and not SKIP_GENRES & set(r.get('genre_ids') or [])
+
+
 def _results(path, kind, **params):
+    if path.startswith('/discover/'):
+        params = {'include_adult': 'false', **params}
+        if kind == 's' and 'with_genres' not in params:
+            params['without_genres'] = ','.join(map(str, sorted(SKIP_GENRES)))
     d = metadata.tmdb(path, quick=True, **params) or {}
-    return [item(r, kind) for r in d.get('results') or [] if r.get('poster_path')]
+    return [item(r, kind) for r in d.get('results') or [] if wanted(r)]
 
 
 def home():
@@ -126,7 +138,7 @@ def search(q):
         out = []
         for r in d.get('results') or []:
             kind = {'movie': 'm', 'tv': 's'}.get(r.get('media_type'))
-            if kind and r.get('poster_path'):
+            if kind and wanted(r):
                 out.append(item(r, kind))
         return out
     return _cached(('search', q.lower()), SEARCH_MAX_AGE, fetch)
@@ -150,7 +162,7 @@ def title(kind, tmdb_id):
             out['seasons'] = [[s['season_number'], s.get('episode_count') or 0] for s in d.get('seasons') or []
                               if s.get('season_number') and s.get('episode_count')]
         out['rec'] = [item(r, kind) for r in (d.get('recommendations') or {}).get('results') or []
-                      if r.get('poster_path')][:18]
+                      if wanted(r)][:18]
         return out
     data = _cached(('title', kind, tmdb_id), TITLE_MAX_AGE, fetch)
     if data:

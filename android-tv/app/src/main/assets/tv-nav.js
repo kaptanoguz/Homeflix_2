@@ -141,6 +141,11 @@
   }
 
   window.hfTvMedia = function (a) {
+    // Online sekmesinin oynatıcısı (frameXTV iframe) komutları postMessage ile alır.
+    if (typeof onlineCommand === 'function' && typeof OP !== 'undefined' && OP.open) {
+      onlineCommand(a);
+      return;
+    }
     // Homeflix'in kendi oynatıcı komutları dönüştürülen (mkv/avi) videolarda da doğru sarar.
     if (typeof mediaCommand === 'function') {
       if (typeof P !== 'undefined' && P.open) mediaCommand(a);

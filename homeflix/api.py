@@ -9,8 +9,8 @@ from collections import defaultdict
 
 from flask import Flask, abort, g, jsonify, render_template, request, send_file
 
-from . import library, media, metadata, state, subtitles
-from .config import BASE_DIR, POSTERS_DIR
+from . import library, media, metadata, online, state, subtitles
+from .config import BASE_DIR, ONLINE_EMBED, POSTERS_DIR
 from .db import LOCAL_VIEWER, load_settings, save_settings, session
 from .names import fold, sequel_key
 
@@ -297,7 +297,16 @@ def api_user():
         prog = {r['key']: [round(r['position'] or 0), round(r['duration'] or 0), r['finished'] or 0, r['updated_at'] or 0]
                 for r in c.execute("SELECT * FROM progress WHERE viewer = ? AND key LIKE 'm:%'", (viewer(),))}
         mylist = [r['key'] for r in c.execute("SELECT key FROM mylist WHERE viewer = ? ORDER BY added_at DESC", (viewer(),))]
-    return jsonify({'progress': prog, 'mylist': mylist, 'continue': continue_watching()})
+        # Online titles on My List, with the TMDb info remembered when they were opened.
+        listed = {}
+        for key in mylist:
+            k = online.parse_key(key)
+            if k and key[:3] in ('om:', 'os:'):
+                info = online.known(c, k[0], k[1])
+                if info:
+                    listed[key] = info
+    return jsonify({'progress': prog, 'mylist': mylist, 'continue': continue_watching(), 'online': listed,
+                    'embed': ONLINE_EMBED})
 
 
 def continue_watching():
@@ -306,6 +315,13 @@ def continue_watching():
         rows = c.execute("SELECT * FROM progress WHERE viewer = ? ORDER BY updated_at DESC LIMIT 60", (viewer(),)).fetchall()
         seen_series = set()
         for r in rows:
+            if r['key'].startswith('o'):
+                entry = _online_continue(c, r, seen_series)
+                if entry:
+                    out.append(entry)
+                if len(out) >= 20:
+                    break
+                continue
             kind, _, sid = r['key'].partition(':')
             if not sid.isdigit():
                 continue
@@ -344,11 +360,44 @@ def continue_watching():
     return out
 
 
+def _online_continue(c, r, seen_series):
+    """Continue Watching entry for an online movie ('om:') or episode ('oe:'), or None."""
+    k = online.parse_key(r['key'])
+    if not k or r['key'].startswith('os:'):
+        return None
+    kind, tm, s, e = k
+    info = online.known(c, kind, tm)
+    if not info:
+        return None
+    base = {'kind': 'o' + ('m' if kind == 'm' else 'e'), 'tm': tm, 'pkey': r['key'], 'title': info.get('t', ''),
+            'ob': info.get('ob', ''), 'op': info.get('op', ''), 'pos': r['position'], 'dur': r['duration'],
+            'at': r['updated_at'], 's': s, 'e': e, 'sub': ''}
+    if kind == 'm':
+        if r['finished'] or (r['position'] or 0) < 60:
+            return None
+        return base
+    if ('o', tm) in seen_series:
+        return None
+    seen_series.add(('o', tm))
+    up_next = False
+    if r['finished'] or (r['position'] or 0) < 60:
+        if not r['finished']:
+            return None
+        nxt = online.next_episode(info, s, e)
+        if not nxt:
+            return None
+        s, e = nxt
+        up_next = True
+        base.update(pos=0, dur=0)
+    return {**base, 's': s, 'e': e, 'sub': f"S{s}:B{e}", 'up_next': up_next}
+
+
 @app.route('/api/progress', methods=['POST'])
 def api_progress():
     d = request.get_json(force=True, silent=True) or {}
     key, pos, dur = d.get('key', ''), _num(d.get('position')), _num(d.get('duration'))
-    if not key or key[0] not in 'me' or ':' not in key:
+    online_ok = key[:3] in ('om:', 'oe:') and online.parse_key(key)
+    if not online_ok and (key[:1] not in ('m', 'e') or ':' not in key):
         abort(400)
     finished = 1 if dur > 0 and (pos >= dur * 0.93 or dur - pos < 90) else 0
     with session() as c:
@@ -368,7 +417,8 @@ def api_progress_delete(key):
 def api_mylist():
     d = request.get_json(force=True, silent=True) or {}
     key = d.get('key', '')
-    if not key or key[0] not in 'ms':
+    online_ok = key[:3] in ('om:', 'os:') and online.parse_key(key)
+    if not online_ok and key[:1] not in ('m', 's'):
         abort(400)
     with session() as c:
         if d.get('on'):
@@ -533,6 +583,60 @@ def subs_download():
     if not vtt:
         abort(502)
     return app.response_class(vtt, mimetype='text/vtt')
+
+
+# ---------------------------------------------------------------- online (TMDb catalog, frameXTV player)
+
+def _online(fn, *args):
+    try:
+        data = fn(*args)
+    except online.Unavailable as e:
+        return jsonify({'error': str(e)}), 503
+    if data is None:
+        abort(404)
+    return jsonify(data)
+
+
+@app.route('/api/online/home')
+def api_online_home():
+    return _online(lambda: {'rows': online.home(), 'embed': ONLINE_EMBED})
+
+
+@app.route('/api/online/search')
+def api_online_search():
+    return _online(online.search, request.args.get('q', ''))
+
+
+@app.route('/api/online/title/<kind>/<int:tm>')
+def api_online_title(kind, tm):
+    if kind not in ('m', 's'):
+        abort(404)
+    try:
+        data = online.title(kind, tm)
+    except online.Unavailable as e:
+        return jsonify({'error': str(e)}), 503
+    if not data:
+        abort(404)
+    data = dict(data)
+    with session() as c:
+        table = 'movies' if kind == 'm' else 'series'
+        local = c.execute(f"SELECT id FROM {table} WHERE tmdb_id = ? LIMIT 1", (tm,)).fetchone()
+        data['local'] = f"{kind}:{local['id']}" if local else ''
+        if kind == 'm':
+            p = c.execute("SELECT * FROM progress WHERE viewer = ? AND key = ?", (viewer(), f"om:{tm}")).fetchone()
+            data['progress'] = [p['position'] or 0, p['duration'] or 0, p['finished'] or 0, p['updated_at'] or 0] if p else None
+        else:
+            data['progress'] = {r['key'].split(':', 2)[2]: [r['position'] or 0, r['duration'] or 0, r['finished'] or 0,
+                                                            r['updated_at'] or 0]
+                                for r in c.execute("SELECT * FROM progress WHERE viewer = ? AND key LIKE ?",
+                                                   (viewer(), f"oe:{tm}:%"))}
+    data['embed'] = ONLINE_EMBED
+    return jsonify(data)
+
+
+@app.route('/api/online/season/<int:tm>/<int:n>')
+def api_online_season(tm, n):
+    return _online(online.season, tm, n)
 
 
 # ---------------------------------------------------------------- images

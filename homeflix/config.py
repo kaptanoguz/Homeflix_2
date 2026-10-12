@@ -30,6 +30,9 @@ OMDB_KEYS = [k for k in (os.environ.get("HOMEFLIX_OMDB_KEYS", "").split(",") if 
                          else _secrets.get("omdb_keys", [])) if k]
 OPENSUBTITLES_API_KEY = os.environ.get("HOMEFLIX_OPENSUBTITLES_KEY") or _secrets.get("opensubtitles_api_key", "")
 USER_AGENT = "Homeflix/2.0"
+# Online tab: frameXTV's iframe player, opened by TMDb id (/embed/{id} or /embed/{id}/{season}/{episode}).
+ONLINE_EMBED = (os.environ.get("HOMEFLIX_ONLINE_EMBED") or _secrets.get("online_embed")
+                or "https://framextv.tech/embed").rstrip("/")
 
 VIDEO_EXTS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v', '.ts', '.vob',
               '.divx', '.mpg', '.mpeg', '.m2ts', '.3gp', '.ogv')

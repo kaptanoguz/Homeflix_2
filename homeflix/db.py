@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS credits (kind TEXT NOT NULL, tmdb_id INTEGER NOT NULL
     PRIMARY KEY (kind, tmdb_id));
 CREATE TABLE IF NOT EXISTS season_fetch (series_id INTEGER, season INTEGER, fetched_at REAL,
     PRIMARY KEY (series_id, season));
+-- Titles seen in the Online tab (TMDb data), so Continue Watching and My List can show them without TMDb.
+CREATE TABLE IF NOT EXISTS online_titles (kind TEXT NOT NULL, tmdb_id INTEGER NOT NULL, data TEXT, updated_at REAL,
+    PRIMARY KEY (kind, tmdb_id));
 CREATE INDEX IF NOT EXISTS idx_episodes_series ON episodes(series_id, season, episode);
 """
 

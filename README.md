@@ -37,6 +37,7 @@ Paste it into Home Theater settings
   - Altyazı boyutu, arka planı ve senkronu (±0,5 sn) ayarlanabilir.
   - Kaldığın yerden devam edilir, sıradaki bölüm geri sayımla otomatik açılır.
   - Hız ayarı, klavye kısayolları ve tam ekran var.
+- **Online:** Kütüphanende olmayan film ve diziler. Liste ve arama TMDb'den gelir, oynatma frameXTV'nin oynatıcısıyla internetten yapılır (indirme yok). Kaldığın yerden devam, İzlemeye Devam Et ve Listem online içeriklerde de çalışır. Kütüphanende olanlar "KÜTÜPHANEDE" etiketiyle gösterilir. Oynatıcı adresi `secrets.json` içindeki `online_embed` ya da `HOMEFLIX_ONLINE_EMBED` ile değiştirilebilir.
 - **Listem ve izleme ilerlemesi** sunucuda tutulur. Telefonda yarım bırakılan film bilgisayarda kaldığı yerden açılır.
 - **Arama:** Anlık arama. `/` tuşu ile açılır. Türkçe karakterlere duyarsızdır ("sirin" → "Şirin").
 

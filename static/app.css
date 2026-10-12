@@ -160,6 +160,7 @@ main { min-height: 100vh; }
 .card:hover .pbar { opacity: 0; }
 .card .flag { position: absolute; top: 8px; left: 8px; background: rgba(0,0,0,.72); backdrop-filter: blur(6px); font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 5px; letter-spacing: .02em; }
 .card .flag.new { background: var(--accent); }
+.card .flag.own { background: rgba(34,197,94,.85); color: #04130a; }
 .card .caption { padding: 10px 2px 0; }
 .card .caption strong { display: block; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card .caption span { font-size: 12.5px; color: var(--dim); display: flex; gap: 8px; }
@@ -464,7 +465,7 @@ main { min-height: 100vh; }
   .nav { gap: 12px; }
   .brand { font-size: 22px; }
   .tabbar {
-    display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: rgba(14,14,19,.94); backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px); border-top: 1px solid var(--line);
   }
@@ -618,3 +619,21 @@ main { min-height: 100vh; }
   .kids-sky span { font-size: 22px; opacity: .4; }
   .kids .card .art { border-radius: 14px; border-width: 2px; }
 }
+
+/* ---------------------------------------------------------------- online tab and player */
+.o-search { padding: 0 var(--gutter) 18px; position: relative; z-index: 4; }
+.o-search-box { display: flex; align-items: center; gap: 10px; max-width: 560px; height: 44px; padding: 0 16px; border-radius: 22px;
+  background: rgba(31,31,41,.85); border: 1px solid var(--line-2); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.o-search-box .icon { color: var(--dim); flex: none; }
+.o-search-box input { flex: 1; min-width: 0; height: 100%; background: none; border: 0; outline: 0; color: #fff; font-size: 15px; }
+#online-results .grid { padding-top: 6px; }
+.ep.soon { opacity: .5; cursor: default; }
+.oplayer { position: fixed; inset: 0; z-index: 90; background: #000; display: none; flex-direction: column; color: #fff; }
+.oplayer.open { display: flex; }
+.o-bar { flex: none; display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 12px; background: #0b0b0f; border-bottom: 1px solid var(--line); }
+.o-bar .p-title { flex: 1; min-width: 0; }
+.o-bar .p-title strong, .o-bar .p-title span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.o-bar .p-title strong { font-size: 16px; }
+.o-bar .p-title span { font-size: 12.5px; color: var(--muted); }
+.o-bar .p-btn:focus-visible, .o-bar .p-btn.hf-focus { outline: 3px solid #fff; outline-offset: 2px; border-radius: 50%; }
+.oplayer iframe { flex: 1; width: 100%; border: 0; background: #000; }

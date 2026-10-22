@@ -742,7 +742,9 @@ const UA = navigator.userAgent;
 const APPLE = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
   (/Safari/.test(UA) && !/Chrome|Chromium|Android|Edg|OPR|Firefox/.test(UA));
 const HLS_CLIENT = Math.random().toString(36).slice(2) + Date.now().toString(36);
-const streamMode = () => APPLE ? 'hls' : 'stream';
+// LG webOS can't take the progressive stream (unknown length, chunked): it plays the segmented HLS instead, like Apple.
+const WEBOS = /Web0S|webOS/i.test(UA);
+const streamMode = () => APPLE || WEBOS ? 'hls' : 'stream';
 
 function pTime() { const v = V(); return P.mode !== 'direct' ? P.offset + (v.currentTime || 0) : (v.currentTime || 0); }
 function pDur() { const v = V(); return P.mode === 'direct' && isFinite(v.duration) && v.duration > 0 ? v.duration : (P.info?.duration || 0); }

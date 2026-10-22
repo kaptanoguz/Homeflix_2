@@ -741,8 +741,11 @@ const V = () => $('#video');
 const UA = navigator.userAgent;
 const APPLE = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
   (/Safari/.test(UA) && !/Chrome|Chromium|Android|Edg|OPR|Firefox/.test(UA));
+// LG webOS TVs try to buffer the endless progressive stream and stop with "not enough memory"; their player
+// handles HLS natively, so they get the same segmented transcode as Apple devices.
+const WEBOS = /Web0S|webOS|NetCast/i.test(UA);
 const HLS_CLIENT = Math.random().toString(36).slice(2) + Date.now().toString(36);
-const streamMode = () => APPLE ? 'hls' : 'stream';
+const streamMode = () => APPLE || WEBOS ? 'hls' : 'stream';
 
 function pTime() { const v = V(); return P.mode !== 'direct' ? P.offset + (v.currentTime || 0) : (v.currentTime || 0); }
 function pDur() { const v = V(); return P.mode === 'direct' && isFinite(v.duration) && v.duration > 0 ? v.duration : (P.info?.duration || 0); }

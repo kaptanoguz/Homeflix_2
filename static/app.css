@@ -20,6 +20,10 @@
   --sub-size: clamp(18px, 2.6vw, 42px);
   color-scheme: dark;
 }
+/* old LG webOS (Chromium < 79) has no clamp(): give the page edges a fixed gutter instead of none */
+@supports not (width: clamp(1px, 1px, 1px)) {
+  :root { --gutter: 40px; --sub-size: 28px; }
+}
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -41,19 +45,22 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------------------------------------------------------------- nav */
 .nav {
-  position: fixed; inset: 0 0 auto; height: var(--nav-h); z-index: 40; display: flex; align-items: center; gap: 36px;
+  /* top/left/right and child margins instead of inset/gap: old LG webOS browsers (Chromium < 84) ignore both */
+  position: fixed; top: 0; left: 0; right: 0; height: var(--nav-h); z-index: 40; display: flex; align-items: center;
   padding: 0 var(--gutter); background: linear-gradient(180deg, rgba(0,0,0,.75), transparent);
   transition: background .35s var(--ease), box-shadow .35s var(--ease);
 }
 .nav.solid { background: rgba(11, 11, 15, .88); backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px); box-shadow: 0 1px 0 var(--line); }
-.brand { font-weight: 900; font-size: 26px; letter-spacing: .06em; color: var(--accent); text-shadow: 0 2px 18px rgba(229,32,46,.35); white-space: nowrap; }
+.brand { margin-right: 36px; flex-shrink: 0; font-weight: 900; font-size: 26px; letter-spacing: .06em; color: var(--accent); text-shadow: 0 2px 18px rgba(229,32,46,.35); white-space: nowrap; }
 .brand span { color: #fff; font-weight: 300; margin-left: 2px; font-size: .7em; letter-spacing: 0; opacity: .7; }
-.tabs { display: flex; gap: 26px; }
-.tab { color: #d4d4d8; font-weight: 500; font-size: 15px; position: relative; padding: 6px 0; transition: color .2s; }
+.tabs { display: flex; }
+.tab + .tab { margin-left: 26px; }
+.tab { white-space: nowrap; color: #d4d4d8; font-weight: 500; font-size: 15px; position: relative; padding: 6px 0; transition: color .2s; }
 .tab:hover { color: #fff; }
 .tab.active { color: #fff; font-weight: 700; }
 .tab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2px; height: 2px; border-radius: 2px; background: var(--accent); }
-.nav-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.nav-actions { margin-left: auto; padding-left: 12px; display: flex; align-items: center; }
+.nav-actions > * + * { margin-left: 6px; }
 .icon-btn { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; color: #e4e4e7; transition: background .2s, color .2s, transform .2s; }
 .icon-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
 .icon-btn:active { transform: scale(.94); }
@@ -458,12 +465,12 @@ main { min-height: 100vh; }
 
 /* ---------------------------------------------------------------- responsive */
 @media (max-width: 1400px) { .rail { --n: 6; } .rail.wide { --n: 4; } }
+@media (max-width: 1150px) { .brand { margin-right: 24px; } .tab { font-size: 14px; } .tab + .tab { margin-left: 16px; } }
 @media (max-width: 1100px) { .rail { --n: 5; } .rail.wide { --n: 3; } .d-grid { grid-template-columns: 1fr; gap: 20px; } }
 @media (max-width: 860px) {
   :root { --nav-h: 56px; }
   .tabs { display: none; }
-  .nav { gap: 12px; }
-  .brand { font-size: 22px; }
+  .brand { margin-right: 12px; font-size: 22px; }
   .tabbar {
     display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; position: fixed; left: 0; right: 0; bottom: 0; z-index: 45;
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: rgba(14,14,19,.94); backdrop-filter: blur(18px);

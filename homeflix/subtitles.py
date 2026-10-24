@@ -3,6 +3,8 @@ import os
 import re
 import struct
 import subprocess
+import threading
+import time
 
 import requests
 
@@ -151,3 +153,108 @@ def download_online(file_id):
     if not link:
         return None
     return to_vtt(decode_text(requests.get(link, timeout=15).content))
+
+
+# Automatic Turkish subtitles for library videos that have none. The free OpenSubtitles plan allows only a few
+# downloads a day, so each video is fetched once and kept in SUBS_DIR; later plays, also offline ones, read the file.
+AUTO_RETRY = 3 * 86400  # after "nothing in Turkish", look again in three days
+_auto_lock = threading.Lock()
+
+
+def _auto_paths(path):
+    key = hashlib.sha1(f"{path}|{os.path.getsize(path)}".encode()).hexdigest()
+    base = os.path.join(SUBS_DIR, 'auto-' + key)
+    return base + '.vtt', base + '.none'
+
+
+def auto_cached(path):
+    try:
+        vtt = _auto_paths(path)[0]
+    except OSError:
+        return None
+    if os.path.exists(vtt):
+        with open(vtt, encoding='utf-8') as f:
+            return f.read()
+    return None
+
+
+def _turkish_candidates(path, ids, query):
+    """Turkish results, best first: same file (hash), then same title by TMDb/IMDb id, then by name.
+    Returns None when OpenSubtitles could not be reached, so being offline is not taken for "no subtitle"."""
+    found, seen, reached = [], set(), False
+
+    def collect(params, rank):
+        nonlocal reached
+        params = dict(sorted({**params, 'languages': 'tr'}.items()))
+        try:
+            r = requests.get("https://api.opensubtitles.com/api/v1/subtitles", params=params, headers=OS_HEADERS, timeout=8)
+        except requests.RequestException:
+            return
+        if r.status_code != 200:
+            return
+        reached = True
+        try:
+            data = r.json().get('data', [])
+        except ValueError:
+            return
+        for item in data:
+            attr = item.get('attributes') or {}
+            if attr.get('language') != 'tr' or not attr.get('files'):
+                continue
+            fid = attr['files'][0].get('file_id')
+            if not fid or fid in seen:
+                continue
+            seen.add(fid)
+            machine = bool(attr.get('machine_translated') or attr.get('ai_translated'))
+            rank_ = 0 if rank == 0 or attr.get('moviehash_match') else rank
+            found.append((rank_, machine, -(attr.get('download_count') or 0), fid, attr.get('release') or ''))
+
+    try:
+        mh = opensubtitles_hash(path)
+    except OSError:
+        mh = None
+    if mh:
+        collect({'moviehash': mh}, 0)
+    if ids:
+        collect(ids, 1)
+    if not found and query:
+        collect({'query': query}, 2)
+    if not reached:
+        return None
+    return sorted(found)
+
+
+def auto_turkish(path, ids, query):
+    """The video's Turkish subtitle as (vtt, label), downloading it once if needed; None if there is none
+    (or no key, no internet, quota used up)."""
+    if not OPENSUBTITLES_API_KEY:
+        return None
+    try:
+        vtt_path, none_path = _auto_paths(path)
+    except OSError:
+        return None
+    with _auto_lock:  # two devices starting the same video must not spend two downloads
+        cached = auto_cached(path)
+        if cached:
+            return cached, 'Türkçe (internet)'
+        try:
+            if time.time() - os.path.getmtime(none_path) < AUTO_RETRY:
+                return None
+        except OSError:
+            pass
+        cands = _turkish_candidates(path, ids, query)
+        if cands is None:
+            return None
+        if not cands:
+            open(none_path, 'w').close()
+            return None
+        for _, _, _, fid, release in cands[:2]:
+            try:
+                vtt = download_online(fid)
+            except (requests.RequestException, ValueError):
+                vtt = None
+            if vtt and '-->' in vtt:
+                with open(vtt_path, 'w', encoding='utf-8') as f:
+                    f.write(vtt)
+                return vtt, 'Türkçe (internet)'
+        return None

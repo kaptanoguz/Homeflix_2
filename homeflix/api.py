@@ -471,6 +471,7 @@ def api_media(kind, iid):
     out = {'kind': kind, 'id': iid, 'direct': info['direct'], 'duration': info['duration'], 'audio': info['audio'],
            'subs': [s for s in info['subs'] if s['text']],
            'local_subs': [{'index': s['index'], 'label': s['label'], 'lang': s['lang']} for s in subtitles.local_subtitles(path)],
+           'auto_sub': bool(subtitles.auto_cached(path)),
            'video': info['video'], 'file': os.path.basename(path), 'size': os.path.getsize(path)}
     with session() as c:
         p = c.execute("SELECT * FROM progress WHERE viewer = ? AND key = ?", (viewer(), f"{kind}:{iid}")).fetchone()
@@ -557,18 +558,38 @@ def sub_embedded(kind, iid, n):
     return app.response_class(text, mimetype='text/vtt')
 
 
+def sub_lookup(kind, iid):
+    """Search terms for a library video: a name query, and the TMDb/IMDb ids OpenSubtitles knows titles by."""
+    with session() as c:
+        if kind == 'm':
+            r = c.execute("SELECT title, year, original_title, tmdb_id, imdb_id FROM movies WHERE id = ?", (iid,)).fetchone()
+            query = f"{r['original_title'] or r['title']} {r['year'] or ''}".strip()
+            imdb = re.sub(r'\D', '', r['imdb_id'] or '')
+            ids = {'tmdb_id': r['tmdb_id']} if r['tmdb_id'] else ({'imdb_id': int(imdb)} if imdb else {})
+        else:
+            r = c.execute("SELECT e.season, e.episode, s.title, s.original_title, s.tmdb_id FROM episodes e JOIN series s "
+                          "ON s.id = e.series_id WHERE e.id = ?", (iid,)).fetchone()
+            query = f"{r['original_title'] or r['title']} S{r['season']:02d}E{r['episode']:02d}"
+            ids = {'parent_tmdb_id': r['tmdb_id'], 'season_number': r['season'],
+                   'episode_number': r['episode']} if r['tmdb_id'] else {}
+    return query, ids
+
+
 @app.route('/api/subs/search/<kind>/<int:iid>')
 def subs_search(kind, iid):
     path = media_path(kind, iid)
-    with session() as c:
-        if kind == 'm':
-            r = c.execute("SELECT title, year, original_title FROM movies WHERE id = ?", (iid,)).fetchone()
-            query = f"{r['original_title'] or r['title']} {r['year'] or ''}".strip()
-        else:
-            r = c.execute("SELECT e.season, e.episode, s.title, s.original_title FROM episodes e JOIN series s "
-                          "ON s.id = e.series_id WHERE e.id = ?", (iid,)).fetchone()
-            query = f"{r['original_title'] or r['title']} S{r['season']:02d}E{r['episode']:02d}"
-    return jsonify(subtitles.search_online(path, query))
+    return jsonify(subtitles.search_online(path, sub_lookup(kind, iid)[0]))
+
+
+# Played without a Turkish subtitle: the server looks one up on OpenSubtitles (it, not the TV, needs internet).
+@app.route('/sub/<kind>/<int:iid>/auto')
+def sub_auto(kind, iid):
+    path = media_path(kind, iid)
+    query, ids = sub_lookup(kind, iid)
+    found = subtitles.auto_turkish(path, ids, query)
+    if not found:
+        return '', 204
+    return app.response_class(found[0], mimetype='text/vtt')
 
 
 @app.route('/api/subs/download', methods=['POST'])

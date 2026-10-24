@@ -1135,7 +1135,16 @@ function autoSubtitles() {
   if (info.local_subs.length) return loadServerSub(`/sub/${k}/${id}/local/0`, info.local_subs[0].label, 'local:0');
   const turkishAudio = info.audio.some(a => ['tur', 'tr'].includes(a.lang));
   const tr = info.subs.find(s => ['tur', 'tr'].includes(s.lang));
-  if (tr && !turkishAudio) loadServerSub(`/sub/${k}/${id}/embedded/${tr.index}`, tr.label, 'emb:' + tr.index);
+  if (tr && !turkishAudio) return loadServerSub(`/sub/${k}/${id}/embedded/${tr.index}`, tr.label, 'emb:' + tr.index);
+  if (!turkishAudio) autoOnlineSub(k, id);
+}
+// No Turkish subtitle with the video: the server looks one up on OpenSubtitles (once; it keeps the file, so it
+// also works offline later). Quietly does nothing without internet, and never replaces a subtitle picked meanwhile.
+async function autoOnlineSub(k, id) {
+  let text = '';
+  try { const r = await fetch(`/sub/${k}/${id}/auto`); if (r.status === 200) text = await r.text(); } catch (e) {}
+  if (!text || P.kind !== k || P.id !== id || P.subs || store.get('subsOff', false)) return;
+  if (setSubs(text, 'Türkçe (internet)', 'auto')) P.info.auto_sub = true;
 }
 function loadSubFile(file) {
   if (!file) return;
@@ -1167,6 +1176,7 @@ function renderPanel(view = 'main') {
   const audio = (info.audio.length ? info.audio : [{ index: 0, label: 'Varsayılan' }]).map(a => opt(P.audio === a.index, `data-p="audio" data-i="${a.index}"`, a.label, a.codec ? a.codec.toUpperCase() : '')).join('');
   let subs = opt(src === 'off', 'data-p="sub-off"', 'Kapalı');
   subs += info.local_subs.map(s => opt(src === 'local:' + s.index, `data-p="sub" data-url="/sub/${P.kind}/${P.id}/local/${s.index}" data-src="local:${s.index}" data-label="${esc(s.label)}"`, s.label, 'dosya')).join('');
+  if (info.auto_sub) subs += opt(src === 'auto', `data-p="sub" data-url="/sub/${P.kind}/${P.id}/auto" data-src="auto" data-label="Türkçe (internet)"`, 'Türkçe (internet)', 'otomatik');
   subs += info.subs.map(s => opt(src === 'emb:' + s.index, `data-p="sub" data-url="/sub/${P.kind}/${P.id}/embedded/${s.index}" data-src="emb:${s.index}" data-label="${esc(s.label)}"`, s.label, 'gömülü')).join('');
   if (P.subs && (src === 'file' || src === 'online')) subs += opt(true, '', P.subs.label, src === 'file' ? 'yüklendi' : 'indirildi');
   subs += `<button class="opt" data-p="panel-online">${icon('globe')}<span>Çevrimiçi ara…</span></button>`;

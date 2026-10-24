@@ -1,0 +1,82 @@
+/* Loaded only by browsers without aspect-ratio (Chromium < 88, e.g. LG webOS TV browsers); see index.html.
+   They also lack inset (< 87) and flex gap (< 84), so the same spacing is rebuilt here with longhands and margins.
+   Modern browsers never download this file. */
+
+/* inset */
+.hero-slide { top: 0; right: 0; bottom: 0; left: 0; }
+.hero::after { top: 0; right: 0; bottom: 0; left: 0; }
+.card .art > img { top: 0; right: 0; bottom: 0; left: 0; }
+.card .shade { top: 0; right: 0; bottom: 0; left: 0; }
+.ph { top: 0; right: 0; bottom: 0; left: 0; }
+.overlay { top: 0; right: 0; bottom: 0; left: 0; }
+.scrim { top: 0; right: 0; bottom: 0; left: 0; }
+.sheet-scroll { top: 0; right: 0; bottom: 0; left: 0; }
+.d-hero .blurposter { top: -40px; right: -40px; bottom: -40px; left: -40px; }
+.d-hero::after { top: 0; right: 0; bottom: 0; left: 0; }
+.ep .thumb img { top: 0; right: 0; bottom: 0; left: 0; }
+.ep .thumb .play-glyph { top: 0; right: 0; bottom: 0; left: 0; }
+.search-panel { top: 0; right: 0; bottom: 0; left: 0; }
+.player { top: 0; right: 0; bottom: 0; left: 0; }
+.player video { top: 0; right: 0; bottom: 0; left: 0; }
+.p-ui { top: 0; right: 0; bottom: 0; left: 0; }
+.p-pause { top: 0; right: 0; bottom: 0; left: 0; }
+.pp-face img { top: 0; right: 0; bottom: 0; left: 0; }
+.pp-card .art > img { top: 0; right: 0; bottom: 0; left: 0; }
+.drop-hint { top: 20px; right: 20px; bottom: 20px; left: 20px; }
+.kids-sky { top: 0; right: 0; bottom: 0; left: 0; }
+.oplayer { top: 0; right: 0; bottom: 0; left: 0; }
+
+/* aspect-ratio: padding boxes; their children are absolutely placed */
+.card .art, .pp-card .art { height: 0; padding-top: 150%; }
+.card.land .art, .card.col .art, .ep .thumb, .upnext .still { height: 0; padding-top: 56.25%; }
+.d-hero { height: 0; padding-top: 50%; }
+.d-hero > img { position: absolute; top: 0; left: 0; }
+.card.col .stack img { height: 66px; }
+.pp-poster { height: auto; }
+@media (max-width: 860px) { .d-hero { padding-top: 75%; } }
+
+/* flex gap: a margin between children; a leading icon keeps its space before a bare text label */
+.kicker > * + * { margin-left: 8px; } .kicker > .icon:first-child { margin-right: 8px; } .kicker > .icon:first-child + * { margin-left: 0; }
+.hero-dots > * + * { margin-left: 8px; } .hero-dots > .icon:first-child { margin-right: 8px; } .hero-dots > .icon:first-child + * { margin-left: 0; }
+.score > * + * { margin-left: 5px; } .score > .icon:first-child { margin-right: 5px; } .score > .icon:first-child + * { margin-left: 0; }
+.btn > * + * { margin-left: 10px; } .btn > .icon:first-child { margin-right: 10px; } .btn > .icon:first-child + * { margin-left: 0; }
+.row-head > * + * { margin-left: 14px; } .row-head > .icon:first-child { margin-right: 14px; } .row-head > .icon:first-child + * { margin-left: 0; }
+.row-head .more > * + * { margin-left: 2px; } .row-head .more > .icon:first-child { margin-right: 2px; } .row-head .more > .icon:first-child + * { margin-left: 0; }
+.card .shade span > * + * { margin-left: 8px; } .card .shade span > .icon:first-child { margin-right: 8px; } .card .shade span > .icon:first-child + * { margin-left: 0; }
+.card .caption span > * + * { margin-left: 8px; } .card .caption span > .icon:first-child { margin-right: 8px; } .card .caption span > .icon:first-child + * { margin-left: 0; }
+.toolbar > * + * { margin-left: 14px; } .toolbar > .icon:first-child { margin-right: 14px; } .toolbar > .icon:first-child + * { margin-left: 0; }
+.chips > * + * { margin-left: 8px; } .chips > .icon:first-child { margin-right: 8px; } .chips > .icon:first-child + * { margin-left: 0; }
+.resume-note > * + * { margin-left: 14px; } .resume-note > .icon:first-child { margin-right: 14px; } .resume-note > .icon:first-child + * { margin-left: 0; }
+.section-head > * + * { margin-left: 16px; } .section-head > .icon:first-child { margin-right: 16px; } .section-head > .icon:first-child + * { margin-left: 0; }
+.ep h4 > * + * { margin-left: 12px; } .ep h4 > .icon:first-child { margin-right: 12px; } .ep h4 > .icon:first-child + * { margin-left: 0; }
+.ep .done > * + * { margin-left: 4px; } .ep .done > .icon:first-child { margin-right: 4px; } .ep .done > .icon:first-child + * { margin-left: 0; }
+.version > * + * { margin-left: 12px; } .version > .icon:first-child { margin-right: 12px; } .version > .icon:first-child + * { margin-left: 0; }
+.search-bar > * + * { margin-left: 14px; } .search-bar > .icon:first-child { margin-right: 14px; } .search-bar > .icon:first-child + * { margin-left: 0; }
+.st-head > * + * { margin-left: 20px; } .st-head > .icon:first-child { margin-right: 20px; } .st-head > .icon:first-child + * { margin-left: 0; }
+.st-stats div > * + * { margin-left: 6px; } .st-stats div > .icon:first-child { margin-right: 6px; } .st-stats div > .icon:first-child + * { margin-left: 0; }
+.st-card h3 > * + * { margin-left: 12px; } .st-card h3 > .icon:first-child { margin-right: 12px; } .st-card h3 > .icon:first-child + * { margin-left: 0; }
+.url > * + * { margin-left: 10px; } .url > .icon:first-child { margin-right: 10px; } .url > .icon:first-child + * { margin-left: 0; }
+.toast > * + * { margin-left: 10px; } .toast > .icon:first-child { margin-right: 10px; } .toast > .icon:first-child + * { margin-left: 0; }
+.status > * + * { margin-left: 10px; } .status > .icon:first-child { margin-right: 10px; } .status > .icon:first-child + * { margin-left: 0; }
+.p-top > * + * { margin-left: 16px; } .p-top > .icon:first-child { margin-right: 16px; } .p-top > .icon:first-child + * { margin-left: 0; }
+.p-controls > * + * { margin-left: 6px; } .p-controls > .icon:first-child { margin-right: 6px; } .p-controls > .icon:first-child + * { margin-left: 0; }
+.pp-main > * + * { margin-left: 28px; } .pp-main > .icon:first-child { margin-right: 28px; } .pp-main > .icon:first-child + * { margin-left: 0; }
+.pp-row > * + * { margin-left: 14px; } .pp-row > .icon:first-child { margin-right: 14px; } .pp-row > .icon:first-child + * { margin-left: 0; }
+.opt > * + * { margin-left: 10px; } .opt > .icon:first-child { margin-right: 10px; } .opt > .icon:first-child + * { margin-left: 0; }
+.p-panel .back > * + * { margin-left: 8px; } .p-panel .back > .icon:first-child { margin-right: 8px; } .p-panel .back > .icon:first-child + * { margin-left: 0; }
+.kids .row-head h2 > * + * { margin-left: 6px; } .kids .row-head h2 > .icon:first-child { margin-right: 6px; } .kids .row-head h2 > .icon:first-child + * { margin-left: 0; }
+.o-search-box > * + * { margin-left: 10px; } .o-search-box > .icon:first-child { margin-right: 10px; } .o-search-box > .icon:first-child + * { margin-left: 0; }
+.o-bar > * + * { margin-left: 10px; } .o-bar > .icon:first-child { margin-right: 10px; } .o-bar > .icon:first-child + * { margin-left: 0; }
+.meta > * { margin-right: 14px; margin-bottom: 8px; }
+.actions > * { margin-right: 12px; margin-bottom: 12px; }
+.page-head > * { margin-right: 28px; margin-bottom: 16px; }
+.st-stats > * { margin-right: 8px; margin-bottom: 8px; }
+.pp-facts > * { margin-right: 26px; margin-bottom: 8px; }
+.p-panel .foot > * { margin-right: 18px; margin-bottom: 10px; }
+.chips.wrap > * { margin-left: 0; margin-right: 8px; margin-bottom: 8px; }
+.search-panel .chips > * { margin-left: 0; margin-right: 8px; margin-bottom: 8px; }
+.st-card .chips.wrap > * { margin-left: 0; margin-right: 6px; margin-bottom: 6px; }
+.st-card .actions > * { margin-right: 8px; margin-bottom: 8px; }
+.card .caption span > .score { margin-left: 8px; }  /* follows the year as a bare text node */
+.pp-inner > * + * { margin-top: 26px; }
+@media (max-width: 860px) { .pp-inner > * + * { margin-top: 18px; } .pp-main > * + * { margin-left: 14px; } }

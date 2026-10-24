@@ -9,6 +9,8 @@
 <title>Homeflix</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0f'/%3E%3Cpath d='M18 12h9v40h-9zM37 12h9v40h-9zM18 28h28v8H18z' fill='%23e5202e'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/app.css?v={{ v }}">
+<!-- Old browsers (LG webOS TVs, Chromium < 88) also get legacy.css for aspect-ratio, inset and flex gap; others skip it. -->
+<script>if (!(window.CSS && CSS.supports && CSS.supports('aspect-ratio', '1 / 1'))) document.write('<link rel="stylesheet" href="/static/legacy.css?v={{ v }}">');</script>
 </head>
 <body>
 

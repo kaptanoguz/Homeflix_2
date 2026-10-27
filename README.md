@@ -1,19 +1,19 @@
 # Homeflix 2
 
-Ev ağı için kişisel film ve dizi platformu: kendi bilgisayarındaki filmleri ve dizileri Netflix benzeri bir arayüzle telefondan, TV'den ve tarayıcıdan izle.
+A personal movie and TV platform for your home network: watch the movies and series on your own computer from your phone, TV or browser, in a Netflix-style interface.
 
-*Self-hosted home media server and Netflix-style player for your own movie and TV library (a lightweight Plex / Jellyfin alternative): TMDb posters and metadata, collections, resume playback, live transcoding of MKV/AVI, subtitles from OpenSubtitles. Python + Flask, runs on Linux and Windows.*
+Self-hosted home media server and player for your own library (a lightweight Plex / Jellyfin alternative): TMDb posters and metadata, collections, resume playback, live transcoding of MKV/AVI, subtitles from OpenSubtitles. Python + Flask, runs on Linux and Windows. The interface is in Turkish.
 
-![Homeflix ana sayfa: öne çıkan dizi ve İzlemeye Devam Et satırı](docs/screenshots/home.jpg)
+![Homeflix home page: featured series and the Continue Watching row](docs/screenshots/home.jpg)
 
 ```bash
-./run.sh              # uygulama penceresi
-./run.sh --browser    # varsayılan tarayıcıda
-./run.sh --headless   # yalnızca sunucu
+./run.sh              # app window
+./run.sh --browser    # in the default browser
+./run.sh --headless   # server only
 ```
 
-Diğer cihazlardan: `http://<bilgisayarın-ip-adresi>:5000` (adres Ayarlar ekranında yazar).
-Farklı port için: `HOMEFLIX_PORT=5001 ./run.sh`.
+From other devices: `http://<computer-ip-address>:5000` (the address is shown on the Settings screen).
+For a different port: `HOMEFLIX_PORT=5001 ./run.sh`.
 
 ## Getting your API keys
 
@@ -30,46 +30,46 @@ Farklı port için: `HOMEFLIX_PORT=5001 ./run.sh`.
 3. Register a new consumer/app to get your API key
 4. Paste it into Home Theater settings
 
-## Neler var
+## Features
 
-- **Ana sayfa:** Dönen öne çıkan alan, İzlemeye Devam Et, Listem, Yeni Eklenenler, Koleksiyonlar, Diziler, En Yüksek Puanlılar, türe göre satırlar
-- **Koleksiyonlar:** Devam filmleri (Matrix 1-2-3, Felekten Bir Gece 1-2-3, Harry Potter…) TMDb'den otomatik gruplanır. TMDb'de olmayanlar isimdeki numaraya göre gruplanır.
-- **Detay sayfası:** Arka plan görseli, süre, türler, koleksiyon şeridi, benzer içerikler. Aynı filmin birden fazla dosyası "Sürümler" altında toplanır.
-- **Diziler:** TMDb'den bölüm adları, açıklamaları ve görselleri. Bölüm başına ilerleme çubuğu ve "İzlendi" işareti. Aynı dizinin farklı klasörlerdeki bölümleri birleştirilir.
-- **Oynatıcı:**
-  - Tarayıcının açamadığı dosyalar (mkv, avi, ts, VOB) anında canlı dönüştürülerek oynatılır.
-  - Ses parçası seçilebilir (dublaj / orijinal).
-  - Altyazı kaynakları: yerel `.srt/.vtt/.ass`, mkv içine gömülü altyazılar, OpenSubtitles araması, dosyadan yükleme ya da sürükle-bırak.
-  - Altyazı boyutu, arka planı ve senkronu (±0,5 sn) ayarlanabilir.
-  - Kaldığın yerden devam edilir, sıradaki bölüm geri sayımla otomatik açılır.
-  - Hız ayarı, klavye kısayolları ve tam ekran var.
-- **Online:** Kütüphanende olmayan film ve diziler. Liste ve arama TMDb'den gelir, oynatma frameXTV'nin oynatıcısıyla internetten yapılır (indirme yok). Kaldığın yerden devam, İzlemeye Devam Et ve Listem online içeriklerde de çalışır. Kütüphanende olanlar "KÜTÜPHANEDE" etiketiyle gösterilir. Katalog ve posterler sunucuya kaydedilir; interneti olmayan cihazlar da listeyi, posterleri ve puanları görür (video için internet gerekir). Sunucu internete çıkabildiğinde kataloğu 6 saatte bir yeniler, internet yoksa 10 dakikada bir dener. Oynatıcı adresi `secrets.json` içindeki `online_embed` ya da `HOMEFLIX_ONLINE_EMBED` ile değiştirilebilir.
-- **Listem ve izleme ilerlemesi** sunucuda tutulur. Telefonda yarım bırakılan film bilgisayarda kaldığı yerden açılır.
-- **Arama:** Anlık arama. `/` tuşu ile açılır. Türkçe karakterlere duyarsızdır ("sirin" → "Şirin").
+- **Home page:** rotating featured banner, Continue Watching, My List, Recently Added, Collections, Series, Top Rated, and rows by genre.
+- **Collections:** sequels (Matrix 1-2-3, Felekten Bir Gece 1-2-3, Harry Potter…) are grouped automatically from TMDb. Those not on TMDb are grouped by the number in their name.
+- **Detail page:** backdrop image, runtime, genres, collection strip, similar titles. Several files of the same movie are grouped under "Versions".
+- **Series:** episode titles, descriptions and images from TMDb. A progress bar and a "Watched" mark per episode. Episodes of the same series in different folders are merged.
+- **Player:**
+  - Files the browser can't open (mkv, avi, ts, VOB) are transcoded live and played straight away.
+  - Audio track selection (dubbed / original).
+  - Subtitle sources: local `.srt/.vtt/.ass`, subtitles embedded in mkv, OpenSubtitles search, loading from a file, or drag and drop.
+  - Subtitle size, background and sync (±0.5 s) are adjustable.
+  - Playback resumes where you left off, and the next episode starts automatically after a countdown.
+  - Playback speed, keyboard shortcuts and full screen.
+- **Online:** movies and series that aren't in your library. The list and search come from TMDb, and playback streams from the internet through frameXTV's player (nothing is downloaded). Resume, Continue Watching and My List work for online titles too. Titles you already have are marked "KÜTÜPHANEDE" (in library). The catalog and posters are stored on the server, so devices without internet still see the list, posters and ratings (video needs internet). When the server can reach the internet it refreshes the catalog every 6 hours; without internet it retries every 10 minutes. The player address can be changed with `online_embed` in `secrets.json` or `HOMEFLIX_ONLINE_EMBED`.
+- **My List and watch progress** are kept on the server. A movie you stop on your phone resumes where you left off on the computer.
+- **Search:** instant search, opened with the `/` key. It ignores Turkish accents ("sirin" → "Şirin").
 
-## Ekran görüntüleri
+## Screenshots
 
-![Yeni Eklenenler ve Koleksiyonlar satırları](docs/screenshots/rows.jpg)
+![Recently Added and Collections rows](docs/screenshots/rows.jpg)
 
-![Koleksiyonlar: devam filmleri otomatik gruplanır](docs/screenshots/collections.jpg)
+![Collections: sequels are grouped automatically](docs/screenshots/collections.jpg)
 
-## Yapı
+## Structure
 
 ```
-app.py                 giriş noktası (sunucu + pencere)
+app.py                 entry point (server + window)
 homeflix/
-  config.py            yollar, API anahtarları
-  db.py                SQLite şeması ve göçler
-  names.py             dosya adından başlık / sezon / bölüm çıkarımı
-  library.py           disk taraması, Emby/Jellyfin .nfo ve afişleri
-  metadata.py          TMDb/OMDb zenginleştirme, koleksiyonlar, bölüm bilgileri
-  media.py             ffprobe analizi, canlı akış, görsel önbelleği
-  subtitles.py         yerel, gömülü ve çevrimiçi altyazılar
-  api.py               HTTP uçları
-templates/index.html   sayfa iskeleti ve simgeler
-static/app.css         tasarım sistemi
-static/app.js          arayüz ve oynatıcı
-data/                  veritabanı, afişler, önbellek (v1'den kopyalandı)
+  config.py            paths, API keys
+  db.py                SQLite schema and migrations
+  names.py             title / season / episode parsing from file names
+  library.py           disk scan, Emby/Jellyfin .nfo files and posters
+  metadata.py          TMDb/OMDb enrichment, collections, episode details
+  media.py             ffprobe analysis, live streaming, image cache
+  subtitles.py         local, embedded and online subtitles
+  api.py               HTTP endpoints
+templates/index.html   page skeleton and icons
+static/app.css         design system
+static/app.js          interface and player
+data/                  database, posters, cache (copied from v1)
 ```
 
-v1 (`../Homeflix_Linux`) olduğu gibi duruyor, v2 ondan bağımsız çalışır.
+v1 (`../Homeflix_Linux`) is left as it is; v2 runs independently of it.

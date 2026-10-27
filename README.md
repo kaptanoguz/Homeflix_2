@@ -1,6 +1,10 @@
 # Homeflix 2
 
-Ev ağı için kişisel film ve dizi platformu.
+Ev ağı için kişisel film ve dizi platformu: kendi bilgisayarındaki filmleri ve dizileri Netflix benzeri bir arayüzle telefondan, TV'den ve tarayıcıdan izle.
+
+*Self-hosted home media server and Netflix-style player for your own movie and TV library (a lightweight Plex / Jellyfin alternative): TMDb posters and metadata, collections, resume playback, live transcoding of MKV/AVI, subtitles from OpenSubtitles. Python + Flask, runs on Linux and Windows.*
+
+![Homeflix ana sayfa: öne çıkan dizi ve İzlemeye Devam Et satırı](docs/screenshots/home.jpg)
 
 ```bash
 ./run.sh              # uygulama penceresi
@@ -11,18 +15,20 @@ Ev ağı için kişisel film ve dizi platformu.
 Diğer cihazlardan: `http://<bilgisayarın-ip-adresi>:5000` (adres Ayarlar ekranında yazar).
 Farklı port için: `HOMEFLIX_PORT=5001 ./run.sh`.
 
-Getting Your API Keys
-OMDB API Key (for posters & metadata)
-Go to https://www.omdbapi.com/apikey.aspx
-Select FREE tier (1,000 daily requests)
-Enter your email and submit
-Check your email for the API key
-Paste it into Home Theater settings
-OpenSubtitles API Key (for subtitles, optional)
-Create an account at https://www.opensubtitles.com
-Go to https://www.opensubtitles.com/consumers
-Register a new consumer/app to get your API key
-Paste it into Home Theater settings
+## Getting your API keys
+
+**OMDb API key** (for posters & metadata)
+1. Go to https://www.omdbapi.com/apikey.aspx
+2. Select the FREE tier (1,000 daily requests)
+3. Enter your email and submit
+4. Check your email for the API key
+5. Paste it into Home Theater settings
+
+**OpenSubtitles API key** (for subtitles, optional)
+1. Create an account at https://www.opensubtitles.com
+2. Go to https://www.opensubtitles.com/consumers
+3. Register a new consumer/app to get your API key
+4. Paste it into Home Theater settings
 
 ## Neler var
 
@@ -40,6 +46,12 @@ Paste it into Home Theater settings
 - **Online:** Kütüphanende olmayan film ve diziler. Liste ve arama TMDb'den gelir, oynatma frameXTV'nin oynatıcısıyla internetten yapılır (indirme yok). Kaldığın yerden devam, İzlemeye Devam Et ve Listem online içeriklerde de çalışır. Kütüphanende olanlar "KÜTÜPHANEDE" etiketiyle gösterilir. Katalog ve posterler sunucuya kaydedilir; interneti olmayan cihazlar da listeyi, posterleri ve puanları görür (video için internet gerekir). Sunucu internete çıkabildiğinde kataloğu 6 saatte bir yeniler, internet yoksa 10 dakikada bir dener. Oynatıcı adresi `secrets.json` içindeki `online_embed` ya da `HOMEFLIX_ONLINE_EMBED` ile değiştirilebilir.
 - **Listem ve izleme ilerlemesi** sunucuda tutulur. Telefonda yarım bırakılan film bilgisayarda kaldığı yerden açılır.
 - **Arama:** Anlık arama. `/` tuşu ile açılır. Türkçe karakterlere duyarsızdır ("sirin" → "Şirin").
+
+## Ekran görüntüleri
+
+![Yeni Eklenenler ve Koleksiyonlar satırları](docs/screenshots/rows.jpg)
+
+![Koleksiyonlar: devam filmleri otomatik gruplanır](docs/screenshots/collections.jpg)
 
 ## Yapı
 

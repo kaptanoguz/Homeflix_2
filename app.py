@@ -64,7 +64,9 @@ def open_window(url):
 
 
 def main():
-    headless = '--headless' in sys.argv or not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+    # Only Linux can be without a desktop session; macOS and Windows never set DISPLAY.
+    no_display = sys.platform.startswith('linux') and not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+    headless = '--headless' in sys.argv or no_display
     url = f'http://127.0.0.1:{PORT}'
     if not headless and server_running():
         # The background service already serves the library: only open the window.

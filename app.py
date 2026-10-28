@@ -3,7 +3,13 @@ import sys
 import threading
 import webbrowser
 
-from homeflix.db import init_db
+# Windows consoles and redirected output default to a legacy code page that can't print the emoji and Turkish
+# letters in the log; packaged builds also ignore PYTHONIOENCODING.
+for _stream in (sys.stdout, sys.stderr):
+    if _stream and hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+
+from homeflix.db import init_db  # noqa: E402
 
 init_db()
 
@@ -64,7 +70,9 @@ def open_window(url):
 
 
 def main():
-    headless = '--headless' in sys.argv or not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+    # Only Linux can be without a desktop session; macOS and Windows never set DISPLAY.
+    no_display = sys.platform.startswith('linux') and not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY'))
+    headless = '--headless' in sys.argv or no_display
     url = f'http://127.0.0.1:{PORT}'
     if not headless and server_running():
         # The background service already serves the library: only open the window.

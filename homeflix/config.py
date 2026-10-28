@@ -1,8 +1,22 @@
 import json
 import os
+import sys
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATA_DIR = os.path.join(BASE_DIR, "data")
+
+
+def _user_data_dir():
+    """Where a packaged build (Windows .exe, macOS .app, Linux bundle) keeps the library: its own files are read-only
+    or unpacked to a temporary folder, so data goes to the usual per-user location instead."""
+    if sys.platform == "win32":
+        return os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "Homeflix")
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Application Support/Homeflix")
+    return os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "homeflix")
+
+
+FROZEN = getattr(sys, "frozen", False)
+DATA_DIR = os.environ.get("HOMEFLIX_DATA_DIR") or (_user_data_dir() if FROZEN else os.path.join(BASE_DIR, "data"))
 DB_FILE = os.path.join(DATA_DIR, "homeflix.db")
 POSTERS_DIR = os.path.join(DATA_DIR, "posters")
 CACHE_DIR = os.path.join(DATA_DIR, "cache")
@@ -13,11 +27,15 @@ SUBS_DIR = os.path.join(CACHE_DIR, "subs")
 for _d in (DATA_DIR, POSTERS_DIR, CACHE_DIR, THUMBS_DIR, IMAGES_DIR, SUBS_DIR):
     os.makedirs(_d, exist_ok=True)
 
+# A macOS app started from Finder gets a minimal PATH without Homebrew, where ffmpeg/ffprobe usually live.
+if FROZEN and sys.platform == "darwin":
+    os.environ["PATH"] = os.pathsep.join([os.environ.get("PATH", ""), "/opt/homebrew/bin", "/usr/local/bin"])
+
 PORT = int(os.environ.get("HOMEFLIX_PORT", "5000"))
 
 # API keys live in secrets.json next to app.py (git-ignored; see secrets.example.json) or in environment variables,
-# so they never end up in the repository.
-SECRETS_FILE = os.path.join(BASE_DIR, "secrets.json")
+# so they never end up in the repository. Packaged builds read it from the data folder.
+SECRETS_FILE = os.path.join(DATA_DIR if FROZEN else BASE_DIR, "secrets.json")
 try:
     with open(SECRETS_FILE, encoding="utf-8") as _f:
         _secrets = json.load(_f)

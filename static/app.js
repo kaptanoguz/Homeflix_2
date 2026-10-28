@@ -1086,6 +1086,10 @@ function parseSubs(text) {
   const cues = [];
   text = text.replace(/\r/g, '').replace(/^﻿/, '');
   if (!/-->/.test(text)) return cues;
+  // Decomposed letters (s + combining cedilla) fall back to another font, so compose them.
+  if (text.normalize) text = text.normalize('NFC');
+  // Turkish subs saved as Windows-1252 show ş ğ ı as þ ð ý; those letters never appear in Turkish.
+  if (/[þðÞÐ]/.test(text) && !/[şğŞĞ]/.test(text)) text = text.replace(/[þðýÞÐÝ]/g, c => ({ þ: 'ş', ð: 'ğ', ý: 'ı', Þ: 'Ş', Ð: 'Ğ', Ý: 'İ' })[c]);
   for (const block of text.split(/\n{2,}/)) {
     const lines = block.split('\n');
     const i = lines.findIndex(l => l.includes('-->'));

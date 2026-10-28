@@ -338,6 +338,18 @@ main { min-height: 100vh; }
 .spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); border-top-color: #fff; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Subtitle font, bundled so every device (TVs included, even offline) draws ş ğ ı İ in the same face as other letters. */
+@font-face {
+  font-family: "HF Subs"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url(/static/fonts/noto-sans-latin-ext-600-normal.woff2) format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "HF Subs"; font-style: normal; font-weight: 600; font-display: swap;
+  src: url(/static/fonts/noto-sans-latin-600-normal.woff2) format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 /* ---------------------------------------------------------------- player */
 .player { position: fixed; inset: 0; z-index: 90; background: #000; display: none; color: #fff; user-select: none; -webkit-user-select: none; }
 .player.open { display: block; }
@@ -346,7 +358,7 @@ main { min-height: 100vh; }
 .p-subs { position: absolute; left: 6%; right: 6%; bottom: 7%; text-align: center; pointer-events: none; transition: bottom .3s var(--ease); z-index: 2; }
 .player.ui .p-subs { bottom: 17%; }
 .p-subs span {
-  display: inline; font-size: var(--sub-size); line-height: 1.32; font-weight: 600; color: #fff; white-space: pre-line;
+  display: inline; font-family: "HF Subs", var(--font); font-size: var(--sub-size); line-height: 1.32; font-weight: 600; color: #fff; white-space: pre-line;
   text-shadow: 0 0 4px #000, 0 0 4px #000, 0 2px 3px #000, 1px 1px 2px #000, -1px -1px 2px #000;
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }

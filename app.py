@@ -3,7 +3,13 @@ import sys
 import threading
 import webbrowser
 
-from homeflix.db import init_db
+# Windows consoles and redirected output default to a legacy code page that can't print the emoji and Turkish
+# letters in the log; packaged builds also ignore PYTHONIOENCODING.
+for _stream in (sys.stdout, sys.stderr):
+    if _stream and hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+
+from homeflix.db import init_db  # noqa: E402
 
 init_db()
 

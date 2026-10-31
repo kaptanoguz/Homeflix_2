@@ -2053,9 +2053,21 @@ function liveAction(a) {
   if (a === 'list') return LV.list ? closeLiveList() : openLiveList();
   if (a === 'mute') { const v = lVideo(); v.muted = !v.muted; return updateLiveVol(); }
   if (a === 'fullscreen') {
-    const el = $('#lplayer');
-    if (document.fullscreenElement) return document.exitFullscreen().catch(() => {});
-    if (el.requestFullscreen) return el.requestFullscreen().catch(() => { if (window.pywebview?.api) window.pywebview.api.toggle_fullscreen(); });
+    const el = $('#lplayer'), v = lVideo();
+    // iPhone Safari can't put a page element in full screen, only the video itself (its own player).
+    const videoOnly = () => { if (v.webkitEnterFullscreen && !LV.cur?.yt) { try { v.webkitEnterFullscreen(); return true; } catch {} } return false; };
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      return (document.exitFullscreen || document.webkitExitFullscreen).call(document)?.catch?.(() => {});
+    }
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) {
+      try {
+        const r = req.call(el);
+        if (r && r.catch) r.catch(() => { if (!videoOnly() && window.pywebview?.api) window.pywebview.api.toggle_fullscreen(); });
+        return;
+      } catch {}
+    }
+    if (videoOnly()) return;
     if (window.pywebview?.api) window.pywebview.api.toggle_fullscreen();
   }
 }

@@ -42,6 +42,8 @@ CHANNELS = [
     ('AHaber.tr', 'A Haber', 'haber', '1080p', ['https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/ahaber/ahaber.m3u8']),
     ('HalkTV.tr', 'Halk TV', 'haber', '1080p', ['https://halktv-live.daioncdn.net/halktv/halktv.m3u8']),
     ('Tele1.tr', 'Tele 1', 'haber', '1080p', ['https://tele1-live.ercdn.net/tele1/tele1.m3u8']),
+    ('HaberturkTV.tr', 'Habertürk', 'haber', '1080p', ['https://ciner.daioncdn.net/haberturktv/haberturktv.m3u8?app=c98ab0b0-50cc-495b-bb37-778e91f5ff5b&ce=3']),
+    ('HaberGlobal.tr', 'Haber Global', 'haber', 'HD', ['yt:UCtc-a9ZUIg0_5HpsPxEO7Qg#EqoCJ8BPxtE']),
     ('BloombergHT.tr', 'Bloomberg HT', 'haber', '720p', ['https://ciner-live.daioncdn.net/bloomberght/bloomberght.m3u8']),
     ('CNBCe.tr', 'CNBC-e', 'haber', 'HD', ['https://hnpsechtsc.turknet.ercdn.net/xpnvudnlsv/cnbc-e/cnbc-e.m3u8']),
     ('TBMMTV.tr', 'TBMM TV', 'haber', '720p', ['https://meclistv-live.ercdn.net/meclistv/meclistv.m3u8']),
@@ -112,8 +114,11 @@ def channels():
         item = {'id': ch['id'], 'n': ch['name'], 'cat': ch['cat'], 'q': ch['q'], 'no': i + 1,
                 'logo': f"/img/live/{ch['id']}" if logo_file(ch['id']) else '', 'ok': st.get('ok')}
         if url.startswith('yt:'):
-            item['yt'] = url[3:]
-            vid = _yt.get(url[3:], (0, None))[1]
+            # 'yt:<channel id>' plays the channel's current live video; 'yt:<channel id>#<video id>' a fixed one
+            # (a channel whose /live page shows a programme instead of its 24/7 feed).
+            chan, _, fixed = url[3:].partition('#')
+            item['yt'] = chan
+            vid = fixed or _yt.get(chan, (0, None))[1]
             if vid:
                 item['ytv'] = vid
         else:
@@ -133,11 +138,11 @@ def find(cid):
 
 # ---------------------------------------------------------------- on-air check
 
-def _read(url, headers=None):
-    """(status, text, response headers) of a playlist; reads at most 256 KB."""
+def _read(url, headers=None, limit=262144):
+    """(status, text, response headers, final URL) of a playlist or page; reads at most `limit` bytes."""
     r = _http.get(url, timeout=CHECK_TIMEOUT, headers=headers or {}, stream=True)
     try:
-        body = r.raw.read(262144, decode_content=True).decode('utf-8', 'replace')
+        body = r.raw.read(limit, decode_content=True).decode('utf-8', 'replace')
     finally:
         r.close()
     return r.status_code, body, r.headers, r.url
@@ -147,7 +152,8 @@ def _check_url(url):
     """(on air, CORS allowed) for one stream. Downloads only playlist text (a few KB), never video: the master
     playlist and its first quality, since a master can answer while every quality behind it is refused."""
     if url.startswith('yt:'):
-        youtube_live(url[3:])  # when the lookup fails, the app falls back to YouTube's by-channel embed
+        if '#' not in url:
+            youtube_live(url[3:])  # when the lookup fails, the app falls back to YouTube's by-channel embed
         return True, None
     try:
         status, body, headers, final = _read(url, {'Origin': 'http://homeflix.local'})
@@ -222,14 +228,15 @@ _yt = {}
 
 def youtube_live(channel_id):
     """The id of a YouTube channel's current live video (embedding the video works on more devices than YouTube's
-    by-channel live embed). Looked up at most every YT_MAX_AGE; None when it can't be found."""
+    by-channel live embed). Looked up at most every YT_MAX_AGE; None when it can't be found. The video id sits
+    about 800 KB into YouTube's page, so the whole page is read."""
     hit = _yt.get(channel_id)
     if hit and time.time() - hit[0] < YT_MAX_AGE:
         return hit[1]
     vid = hit[1] if hit else None
     try:
         status, body, _, _ = _read(f'https://www.youtube.com/channel/{channel_id}/live',
-                                   {'Accept-Language': 'en', 'Cookie': 'CONSENT=YES+1'})
+                                   {'Accept-Language': 'en', 'Cookie': 'CONSENT=YES+1'}, limit=3_000_000)
         m = re.search(r'<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([\w-]{11})"', body) or \
             re.search(r'"videoId":"([\w-]{11})"', body)
         if status == 200 and m:

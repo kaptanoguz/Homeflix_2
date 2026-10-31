@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from flask import Flask, abort, g, jsonify, render_template, request, send_file
 
-from . import library, media, metadata, online, state, subtitles
+from . import library, livetv, media, metadata, online, state, subtitles
 from .config import BASE_DIR, ONLINE_EMBED, POSTERS_DIR
 from .db import LOCAL_VIEWER, load_settings, save_settings, session
 from .names import fold, sequel_key
@@ -658,6 +658,34 @@ def api_online_title(kind, tm):
 @app.route('/api/online/season/<int:tm>/<int:n>')
 def api_online_season(tm, n):
     return _online(online.season, tm, n)
+
+
+# ---------------------------------------------------------------- live TV (broadcasters' own free streams)
+
+@app.route('/api/live')
+def api_live():
+    return jsonify(livetv.channels())
+
+
+@app.route('/api/live/status')
+def api_live_status():
+    return jsonify(livetv.status_report())
+
+
+@app.route('/api/live/fail', methods=['POST'])
+def api_live_fail():
+    d = request.get_json(force=True, silent=True) or {}
+    livetv.report_failure(str(d.get('id', ''))[:64], str(d.get('code', ''))[:40], request.headers.get('User-Agent', ''))
+    return ('', 204)
+
+
+@app.route('/img/live/<cid>')
+def img_live(cid):
+    path = livetv.logo_file(cid) if re.fullmatch(r'[A-Za-z0-9.]{2,64}', cid) else None
+    if not path:
+        abort(404)
+    mime = {'svg': 'image/svg+xml', 'png': 'image/png', 'jpg': 'image/jpeg', 'webp': 'image/webp'}[path.rsplit('.', 1)[1]]
+    return send_file(path, mimetype=mime, conditional=True, max_age=86400)
 
 
 # ---------------------------------------------------------------- images

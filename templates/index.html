@@ -22,6 +22,7 @@
     <a class="tab" href="#series" data-tab="series">Diziler</a>
     <a class="tab" href="#collections" data-tab="collections">Koleksiyonlar</a>
     <a class="tab" href="#online" data-tab="online">Online</a>
+    <a class="tab" href="#live" data-tab="live">Canlı TV</a>
     <a class="tab kids-tab" href="#kids" data-tab="kids">Kids Zone</a>
     <a class="tab" href="#list" data-tab="list">Listem</a>
   </nav>
@@ -40,6 +41,7 @@
   <a href="#series" data-tab="series"><svg class="icon"><use href="#i-tv"/></svg>Diziler</a>
   <a href="#collections" data-tab="collections"><svg class="icon"><use href="#i-stack"/></svg>Koleksiyon</a>
   <a href="#online" data-tab="online"><svg class="icon"><use href="#i-globe"/></svg>Online</a>
+  <a href="#live" data-tab="live"><svg class="icon"><use href="#i-live"/></svg>Canlı</a>
   <a href="#kids" data-tab="kids" class="kids-tab"><svg class="icon"><use href="#i-kids"/></svg>Kids</a>
   <a href="#list" data-tab="list"><svg class="icon"><use href="#i-bookmark"/></svg>Listem</a>
 </nav>
@@ -122,6 +124,28 @@
           sandbox="allow-scripts allow-same-origin allow-forms allow-presentation allow-pointer-lock allow-orientation-lock"></iframe>
 </div>
 
+<div class="lplayer" id="lplayer">
+  <div class="l-stage" id="l-stage">
+    <video id="l-video" playsinline webkit-playsinline autoplay></video>
+    <iframe id="l-frame" title="Canlı yayın" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen hidden></iframe>
+    <div class="l-loading" id="l-loading"><div class="l-logo" id="l-loading-logo"></div><div class="spin"></div></div>
+    <div class="l-error" id="l-error" hidden></div>
+    <div class="l-osd" id="l-osd"></div>
+    <div class="l-top">
+      <button class="p-btn" data-l="close" title="Geri (Esc)" aria-label="Geri"><svg class="icon"><use href="#i-back"/></svg></button>
+      <div class="p-title"><strong id="l-title"></strong><span id="l-sub"></span></div>
+      <button class="p-btn" data-l="mute" title="Sessiz (M)" aria-label="Ses"><svg class="icon"><use id="l-volicon" href="#i-vol"/></svg></button>
+      <button class="p-btn" data-l="list" title="Kanallar (OK)" aria-label="Kanal listesi"><svg class="icon"><use href="#i-list"/></svg></button>
+      <button class="p-btn" data-l="fullscreen" title="Tam ekran (F)" aria-label="Tam ekran"><svg class="icon"><use href="#i-expand"/></svg></button>
+    </div>
+  </div>
+  <aside class="l-list" id="l-list">
+    <div class="l-chips" id="l-chips"></div>
+    <div class="l-rows" id="l-rows"></div>
+    <div class="l-keys">▲▼ kanal · ◀▶ kategori · OK izle · Geri kapat</div>
+  </aside>
+</div>
+
 <div class="toasts" id="toasts"></div>
 <div class="status" id="status"><div class="spin"></div><span id="status-text"></span></div>
 
@@ -160,6 +184,8 @@
   <symbol id="i-kids" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.6 4.6 0 0 0 7 0"/><path d="M9 9.5h.01M15 9.5h.01"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
   <symbol id="i-popcorn" viewBox="0 0 24 24"><path d="M5 9h14l-2 12H7z"/><path d="M9 9v12M15 9v12M6 9a3 3 0 0 1 3-4 3 3 0 0 1 6 0 3 3 0 0 1 3 4"/></symbol>
+  <symbol id="i-live" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="m8 2 4 5 4-5"/><circle cx="12" cy="14" r="2.2" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
 </svg>
 
 <script src="/static/app.js?v={{ v }}"></script>

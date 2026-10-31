@@ -406,7 +406,7 @@ function renderList() {
 
 function route() {
   const [view, arg] = (location.hash.slice(1) || 'home').split('/');
-  S.view = ['home', 'movies', 'series', 'collections', 'kids', 'list', 'online'].includes(view) ? view : 'home';
+  S.view = ['home', 'movies', 'series', 'collections', 'kids', 'list', 'online', 'live'].includes(view) ? view : 'home';
   if ((S.view === 'movies' || S.view === 'series')) S.browse[S.view].genre = arg ? decodeURIComponent(arg) : '';
   $$('[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === S.view));
   render();
@@ -418,7 +418,7 @@ function render() {
   clearInterval(heroTimer);
   const y = window.scrollY;
   ({ home: renderHome, movies: () => renderBrowse('movies'), series: () => renderBrowse('series'),
-     collections: renderCollections, kids: renderKids, list: renderList, online: renderOnline })[S.view]();
+     collections: renderCollections, kids: renderKids, list: renderList, online: renderOnline, live: renderLive })[S.view]();
   return y;
 }
 function softRender() { const y = window.scrollY; render(); window.scrollTo(0, y); }
@@ -1748,6 +1748,376 @@ window.addEventListener('keydown', e => {
 document.addEventListener('visibilitychange', () => { if (document.hidden && OP.open) saveOnline(true); });
 window.addEventListener('pagehide', () => { if (OP.open) saveOnline(true); });
 
+/* ================================================================ live TV (broadcasters' own free streams) */
+// Each device plays the broadcaster's stream directly; the Homeflix server only lists the channels, keeps their
+// logos and checks every few hours which ones are on air. Apple devices and LG TVs play HLS natively; the others
+// use hls.js (loaded on first use), and fall back to the native player when a broadcaster blocks hls.js (CORS).
+const LV = { data: null, loading: false, error: false, cat: '', q: '', open: false, cur: null, prev: null, pcat: '',
+  list: false, hl: null, hls: null, seq: 0, uiT: 0, osdT: 0, listT: 0, numBuf: '', numT: 0, failT: 0, pre: new Set() };
+const LIVE_CAT = id => LV.data?.cats.find(c => c.id === id)?.n || '';
+const lVideo = () => $('#l-video');
+const PORTRAIT = () => window.matchMedia('(max-width: 760px) and (orientation: portrait)').matches;
+
+async function loadLive() {
+  if (LV.data || LV.loading) return LV.data;
+  LV.loading = true;
+  try { LV.data = await api.get('/api/live'); LV.error = false; } catch { LV.error = true; }
+  LV.loading = false;
+  return LV.data;
+}
+
+function liveLogo(ch) {
+  return `<div class="l-logo">${ch.logo ? `<img src="${ch.logo}" alt="" loading="lazy" onerror="this.outerHTML='<div class=lt>${esc(ch.n.replace(/['"\\]/g, ''))}</div>'">`
+    : `<div class="lt" style="color:hsl(${hue(ch.n)},70%,82%)">${esc(ch.n)}</div>`}</div>`;
+}
+
+const liveRecent = () => store.get('live_recent', []).map(id => LV.data.channels.find(c => c.id === id)).filter(Boolean);
+function liveFilter(cat, q = '') {
+  const f = fold(q);
+  return LV.data.channels.filter(c => (!cat || c.cat === cat) && (!f || fold(c.n).includes(f)));
+}
+
+function liveCard(ch) {
+  const watching = LV.open && LV.cur?.id === ch.id;
+  return `<button class="lv-card" data-live="${esc(ch.id)}"><span class="lv-no">${ch.no}</span>
+    <span class="lv-name">${esc(ch.n)}</span><span class="lv-meta">${esc(LIVE_CAT(ch.cat))}${ch.tr ? ' · Türkiye' : ''}</span>
+    ${liveLogo(ch)}<span class="lv-badges"><span class="lv-pill">${watching ? 'İZLENİYOR' : 'CANLI'}</span><span class="lv-q">${esc(ch.q)}</span></span></button>`;
+}
+
+async function renderLive() {
+  const view = $('#view');
+  const head = n => `<div class="page-head"><h1>Canlı TV</h1><span class="count">${n}</span></div>`;
+  if (!LV.data) {
+    if (LV.error) {
+      view.innerHTML = head('') + `<div class="grid">${emptyState('Kanal listesi alınamadı', 'Homeflix sunucusuna ulaşılamıyor.', 'live')}</div>
+        <div style="text-align:center;margin-top:-60px"><button class="btn btn-ghost" data-action="live-retry">${icon('refresh')}Tekrar Dene</button></div>`;
+      return;
+    }
+    view.innerHTML = head('') + `<div style="height:50vh;display:grid;place-items:center"><div class="spin" style="width:40px;height:40px;border-width:3px"></div></div>`;
+    await loadLive();
+    if (S.view === 'live') renderLive();
+    return;
+  }
+  const all = LV.data.channels;
+  const items = liveFilter(LV.cat, LV.q);
+  const recent = !LV.cat && !LV.q ? liveRecent().slice(0, 6) : [];
+  const count = c => all.filter(x => x.cat === c).length;
+  view.innerHTML = head(`<span class="lv-dot"></span>${all.length} kanal`) + `
+    <div class="lv-tools">
+      <div class="chips" id="lv-chips"><button class="chip${LV.cat ? '' : ' on'}" data-lcat="">Tümü</button>${LV.data.cats.filter(c => count(c.id))
+        .map(c => `<button class="chip${LV.cat === c.id ? ' on' : ''}" data-lcat="${c.id}">${esc(c.n)}<span class="n">${count(c.id)}</span></button>`).join('')}</div>
+      <label class="o-search-box">${icon('search')}<input id="live-q" type="search" placeholder="Kanal ara…" autocomplete="off" spellcheck="false" value="${esc(LV.q)}"></label>
+    </div>
+    ${recent.length ? `<h2 class="lv-sec">Son İzlediklerin</h2><div class="lv-grid recent">${recent.map(liveCard).join('')}</div><h2 class="lv-sec">Tüm Kanallar</h2>` : ''}
+    <div class="lv-grid" id="lv-grid">${items.map(liveCard).join('') || emptyState('Kanal bulunamadı', 'Başka bir kategori ya da arama deneyin.', 'live')}</div>`;
+  const inp = $('#live-q');
+  inp.addEventListener('input', () => {
+    LV.q = inp.value;
+    $('#lv-grid').innerHTML = liveFilter(LV.cat, LV.q).map(liveCard).join('') || emptyState('Kanal bulunamadı', 'Başka bir arama deneyin.', 'live');
+  });
+}
+
+/* ---- player */
+function liveRows() { return liveFilter(LV.pcat); }
+
+function renderLiveList() {
+  const cats = [{ id: '', n: 'Tümü' }, ...LV.data.cats.filter(c => LV.data.channels.some(x => x.cat === c.id))];
+  $('#l-chips').innerHTML = cats.map(c => `<button class="chip${LV.pcat === c.id ? ' on' : ''}" data-lpcat="${c.id}">${esc(c.n)}</button>`).join('');
+  const rows = liveRows();
+  if (!rows.includes(LV.hl)) LV.hl = rows.includes(LV.cur) ? LV.cur : rows[0];
+  $('#l-rows').innerHTML = rows.map(ch => `<button class="l-row${ch === LV.hl ? ' hl' : ''}" data-lch="${esc(ch.id)}">
+    <span class="no">${ch.no}</span>${liveLogo(ch)}<span class="txt"><strong>${esc(ch.n)}</strong><span>${esc(LIVE_CAT(ch.cat))} · ${esc(ch.q)}</span></span>
+    ${ch === LV.cur ? '<span class="lv-pill">İZLENİYOR</span>' : ''}</button>`).join('');
+  $('.l-chips .chip.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  $('#l-rows .l-row.hl')?.scrollIntoView({ block: 'nearest' });
+}
+
+function liveHighlight(ch) {
+  LV.hl = ch;
+  $$('#l-rows .l-row').forEach(r => r.classList.toggle('hl', r.dataset.lch === ch?.id));
+  $('#l-rows .l-row.hl')?.scrollIntoView({ block: 'nearest' });
+  livePreconnect(ch);
+  armListHide();
+}
+
+// Opens the connection to a channel's server while it is only highlighted, so switching to it starts sooner.
+function livePreconnect(ch) {
+  if (!ch?.url) return;
+  try {
+    const origin = new URL(ch.url).origin;
+    if (LV.pre.has(origin)) return;
+    LV.pre.add(origin);
+    const l = document.createElement('link');
+    l.rel = 'preconnect'; l.href = origin; l.crossOrigin = 'anonymous';
+    document.head.appendChild(l);
+  } catch {}
+}
+
+function liveUI() {
+  const el = $('#lplayer');
+  el.classList.add('ui');
+  clearTimeout(LV.uiT);
+  LV.uiT = setTimeout(() => el.classList.remove('ui'), 3500);
+}
+
+function armListHide() {
+  clearTimeout(LV.listT);
+  if (LV.list) LV.listT = setTimeout(() => closeLiveList(), 9000);
+}
+
+function openLiveList() {
+  if (PORTRAIT()) return;
+  if (!LV.list) {
+    LV.list = true;
+    $('#lplayer').classList.add('listing');
+    pushOverlay('llist', () => { LV.list = false; clearTimeout(LV.listT); $('#lplayer').classList.remove('listing'); });
+  }
+  LV.hl = LV.cur;
+  renderLiveList();
+  armListHide();
+}
+
+function closeLiveList() {
+  if (!LV.list) return;
+  if (stack[stack.length - 1]?.name === 'llist') back();
+}
+
+function showOSD(ch, typed) {
+  const osd = $('#l-osd');
+  osd.innerHTML = typed ? `<div class="no">${esc(typed)}<span style="opacity:.4">_</span></div>`
+    : `<div class="no">${ch.no}</div>${liveLogo(ch)}<div><strong>${esc(ch.n)}</strong><span>${esc(LIVE_CAT(ch.cat))} · <span class="lv-dot"></span>CANLI</span></div>`;
+  osd.classList.add('show');
+  clearTimeout(LV.osdT);
+  LV.osdT = setTimeout(() => osd.classList.remove('show'), typed ? 1600 : 3200);
+}
+
+let hlsLoading = null;
+function loadHlsJs() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (!hlsLoading) hlsLoading = new Promise((ok, fail) => {
+    const s = document.createElement('script');
+    s.src = '/static/vendor/hls.min.js';
+    s.onload = () => ok(window.Hls);
+    s.onerror = () => { hlsLoading = null; fail(); };
+    document.head.appendChild(s);
+  });
+  return hlsLoading;
+}
+
+const NATIVE_HLS = () => APPLE || WEBOS;
+const canNative = () => !!lVideo().canPlayType('application/vnd.apple.mpegurl');
+
+function stopLiveMedia() {
+  if (LV.hls) { try { LV.hls.destroy(); } catch {} LV.hls = null; }
+  const v = lVideo();
+  v.onerror = v.onplaying = null;
+  v.removeAttribute('src');
+  try { v.load(); } catch {}
+  const f = $('#l-frame');
+  if (!f.hidden) { f.src = 'about:blank'; f.hidden = true; }
+}
+
+async function openLive(id) {
+  await loadLive();
+  const ch = LV.data?.channels.find(c => c.id === id);
+  if (!ch) return toast('Kanal bulunamadı.');
+  if (!LV.open) {
+    LV.open = true;
+    LV.pcat = '';
+    $('#lplayer').classList.add('open');
+    pushOverlay('lplayer', closeLiveNow);
+    try { document.activeElement?.blur(); } catch {}
+  }
+  tuneLive(ch);
+  if (PORTRAIT()) renderLiveList();
+}
+
+function tuneLive(ch) {
+  if (!ch) return;
+  if (LV.cur && LV.cur !== ch) LV.prev = LV.cur;
+  LV.cur = ch;
+  const seq = ++LV.seq;
+  store.set('live_last', ch.id);
+  store.set('live_recent', [ch.id, ...store.get('live_recent', []).filter(x => x !== ch.id)].slice(0, 8));
+  $('#l-title').textContent = ch.n;
+  $('#l-sub').textContent = `${ch.no} · ${LIVE_CAT(ch.cat)} · ${ch.q}`;
+  document.title = `${ch.n} · Canlı TV · Homeflix`;
+  $('#l-loading-logo').outerHTML = liveLogo(ch).replace('class="l-logo"', 'class="l-logo" id="l-loading-logo"');
+  $('#l-loading').classList.remove('off');
+  $('#l-error').hidden = true;
+  if (LV.list || PORTRAIT()) renderLiveList();
+  showOSD(ch);
+  liveUI();
+  stopLiveMedia();
+  clearTimeout(LV.failT);
+  $('#lplayer').classList.toggle('yt', !!ch.yt);
+  if (ch.yt) {
+    const f = $('#l-frame');
+    f.hidden = false;
+    f.src = `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(ch.yt)}&autoplay=1&playsinline=1&rel=0`;
+    f.onload = () => { if (seq === LV.seq) $('#l-loading').classList.add('off'); };
+    return;
+  }
+  // Ways to try, in order: each stream URL with hls.js (or natively), then natively when hls.js was refused.
+  const urls = [ch.url, ...(ch.alt || [])];
+  const tries = [];
+  urls.forEach(u => {
+    if (NATIVE_HLS() || ch.cors === false && canNative()) tries.push(['native', u]);
+    else { tries.push(['hls', u]); if (canNative()) tries.push(['native', u]); }
+  });
+  liveAttempt(ch, tries, 0, seq);
+}
+
+function liveAttempt(ch, tries, i, seq) {
+  if (seq !== LV.seq) return;
+  if (i >= tries.length) return liveFailed(ch, 'all');
+  const [mode, url] = tries[i];
+  let moved = false;
+  const next = () => {
+    if (moved || seq !== LV.seq) return;
+    moved = true;
+    clearTimeout(LV.failT);
+    stopLiveMedia();
+    liveAttempt(ch, tries, i + 1, seq);
+  };
+  const v = lVideo();
+  clearTimeout(LV.failT);
+  LV.failT = setTimeout(next, 10000);  // nothing on screen after 10 s: try the next way
+  v.onplaying = () => { if (seq === LV.seq) { clearTimeout(LV.failT); $('#l-loading').classList.add('off'); } };
+  v.onerror = () => next();
+  const start = () => v.play().catch(() => { v.muted = true; updateLiveVol(); v.play().catch(() => {}); });
+  if (mode === 'native') {
+    v.src = url;
+    start();
+    return;
+  }
+  loadHlsJs().then(Hls => {
+    if (seq !== LV.seq) return;
+    if (!Hls || !Hls.isSupported()) return next();
+    const hls = new Hls({
+      // Start at a good guess of ~5 Mbit/s (720p-1080p) instead of measuring first, and keep a short buffer:
+      // a live channel needs little, and switching channels throws it away anyway.
+      abrEwmaDefaultEstimate: 5e6, maxBufferLength: 20, backBufferLength: 20, liveSyncDurationCount: 3,
+      capLevelToPlayerSize: true, startFragPrefetch: true, manifestLoadingMaxRetry: 1, levelLoadingMaxRetry: 2,
+    });
+    LV.hls = hls;
+    hls.on(Hls.Events.MANIFEST_PARSED, start);
+    hls.on(Hls.Events.ERROR, (_, d) => {
+      if (!d.fatal || seq !== LV.seq) return;
+      if (d.type === Hls.ErrorTypes.MEDIA_ERROR && !hls._recovered) { hls._recovered = true; return hls.recoverMediaError(); }
+      next();
+    });
+    hls.loadSource(url);
+    hls.attachMedia(v);
+  }).catch(next);
+}
+
+function liveFailed(ch, code) {
+  $('#l-loading').classList.add('off');
+  const err = $('#l-error');
+  err.innerHTML = `<b>${esc(ch.n)} şu an açılmıyor</b>${ch.tr ? 'Bu kanal yalnızca Türkiye içinden izlenebiliyor. ' : ''}Başka bir kanal seçin${PORTRAIT() ? '.' : ' (OK).'}`;
+  err.hidden = false;
+  if (!LV.list) openLiveList();
+  api.post('/api/live/fail', { id: ch.id, code }).catch(() => {});
+}
+
+function zapLive(dir) {
+  const rows = liveRows();
+  if (!rows.length) return;
+  const i = rows.indexOf(LV.cur);
+  tuneLive(rows[(i + dir + rows.length) % rows.length]);
+}
+
+function liveNumber(d) {
+  LV.numBuf = (LV.numBuf + d).slice(-3);
+  showOSD(null, LV.numBuf);
+  clearTimeout(LV.numT);
+  LV.numT = setTimeout(() => {
+    const ch = LV.data.channels.find(c => c.no === +LV.numBuf);
+    LV.numBuf = '';
+    if (ch) tuneLive(ch); else toast('Bu numarada kanal yok.', 1500);
+  }, 1200);
+}
+
+function updateLiveVol() { $('#l-volicon').setAttribute('href', lVideo().muted ? '#i-mute' : '#i-vol'); }
+
+function liveAction(a) {
+  if (a === 'close') return back();
+  if (a === 'list') return LV.list ? closeLiveList() : openLiveList();
+  if (a === 'mute') { const v = lVideo(); v.muted = !v.muted; return updateLiveVol(); }
+  if (a === 'fullscreen') {
+    const el = $('#lplayer');
+    if (document.fullscreenElement) return document.exitFullscreen().catch(() => {});
+    if (el.requestFullscreen) return el.requestFullscreen().catch(() => { if (window.pywebview?.api) window.pywebview.api.toggle_fullscreen(); });
+    if (window.pywebview?.api) window.pywebview.api.toggle_fullscreen();
+  }
+}
+
+function closeLiveNow() {
+  LV.open = false;
+  clearTimeout(LV.failT);
+  LV.seq++;
+  stopLiveMedia();
+  $('#lplayer').classList.remove('open', 'listing', 'ui');
+  document.title = 'Homeflix';
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  if (S.view === 'live') softRender();
+}
+
+$('#lplayer').addEventListener('click', e => {
+  const b = e.target.closest('[data-l]');
+  if (b) return liveAction(b.dataset.l);
+  const c = e.target.closest('[data-lpcat]');
+  if (c) { LV.pcat = c.dataset.lpcat; LV.hl = null; renderLiveList(); return armListHide(); }
+  const r = e.target.closest('[data-lch]');
+  if (r) { const ch = LV.data.channels.find(x => x.id === r.dataset.lch); LV.hl = ch; tuneLive(ch); return armListHide(); }
+  if (e.target.closest('.l-list')) return armListHide();
+  // A tap on the picture shows the controls, a second one opens the list.
+  if ($('#lplayer').classList.contains('ui') || LV.list) return LV.list ? closeLiveList() : openLiveList();
+  liveUI();
+});
+$('#l-rows').addEventListener('scroll', () => armListHide(), { passive: true });
+lVideo().addEventListener('volumechange', updateLiveVol);
+
+// Remote and keyboard while the live player is open. List closed: up/down (and CH+/CH-) switch channels,
+// OK or left opens the list, digits pick a channel number. List open: up/down move, left/right change the
+// category, OK switches, Back closes the list.
+const CH_UP = [427, 33], CH_DOWN = [428, 34];
+window.addEventListener('keydown', e => {
+  if (!LV.open) return;
+  const k = e.key, code = e.keyCode;
+  const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
+  const ok = k === 'Enter' || code === 13 || code === 23;
+  if (k === 'Escape' || code === 461 || k === 'Backspace' || k === 'GoBack') { stop(); return back(); }
+  if (/^[0-9]$/.test(k)) { stop(); return liveNumber(k); }
+  if (k === 'm' || k === 'M') { stop(); return liveAction('mute'); }
+  if (k === 'f' || k === 'F') { stop(); return liveAction('fullscreen'); }
+  if (CH_UP.includes(code) || k === 'ChannelUp') { stop(); return zapLive(1); }
+  if (CH_DOWN.includes(code) || k === 'ChannelDown') { stop(); return zapLive(-1); }
+  if (LV.list) {
+    const rows = liveRows();
+    const i = rows.indexOf(LV.hl);
+    if (k === 'ArrowDown') { stop(); return liveHighlight(rows[Math.min(rows.length - 1, i + 1)]); }
+    if (k === 'ArrowUp') { stop(); return liveHighlight(rows[Math.max(0, i - 1)]); }
+    if (k === 'ArrowLeft' || k === 'ArrowRight') {
+      stop();
+      const cats = ['', ...LV.data.cats.filter(c => LV.data.channels.some(x => x.cat === c.id)).map(c => c.id)];
+      LV.pcat = cats[(cats.indexOf(LV.pcat) + (k === 'ArrowRight' ? 1 : -1) + cats.length) % cats.length];
+      LV.hl = null;
+      renderLiveList();
+      return armListHide();
+    }
+    if (ok) { stop(); if (LV.hl && LV.hl !== LV.cur) tuneLive(LV.hl); return armListHide(); }
+    return;
+  }
+  if (PORTRAIT()) return;
+  if (k === 'ArrowUp') { stop(); return zapLive(-1); }
+  if (k === 'ArrowDown') { stop(); return zapLive(1); }
+  if (ok || k === 'ArrowLeft') { stop(); return openLiveList(); }
+  if (k === 'ArrowRight') { stop(); showOSD(LV.cur); return liveUI(); }
+  if (k === ' ') { stop(); const v = lVideo(); return v.paused ? v.play().catch(() => {}) : v.pause(); }
+}, true);
+
 /* ================================================================ global events */
 function shuffleMovie() {
   const pool = randPool();
@@ -1761,6 +2131,11 @@ document.addEventListener('click', async e => {
   const t = e.target;
   if (t.closest('#player')) return;
   if (t.closest('#oplayer')) { const b = t.closest('[data-o]'); if (b) onlineAction(b.dataset.o); return; }
+  if (t.closest('#lplayer')) return;
+  const lv = t.closest('[data-live]');
+  if (lv) return openLive(lv.dataset.live);
+  const lc = t.closest('[data-lcat]');
+  if (lc) { LV.cat = lc.dataset.lcat; return renderLive(); }
   const forget = t.closest('[data-forget]');
   if (forget) {
     e.stopPropagation();
@@ -1803,6 +2178,7 @@ document.addEventListener('click', async e => {
     if (a === 'shuffle') return shuffleMovie();
     if (a === 'kids-surprise') return kidsSurprise();
     if (a === 'online-retry') { OL.error = false; return renderOnline(); }
+    if (a === 'live-retry') { LV.error = false; return renderLive(); }
     return settingsAction(a);
   }
   if (t.hasAttribute('data-dismiss')) back();
@@ -1810,12 +2186,12 @@ document.addEventListener('click', async e => {
 
 document.addEventListener('keydown', e => {
   if (P.open) return playerKeys(e);
-  if (OP.open) return;
+  if (OP.open || LV.open) return;
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
   if (e.key === 'Escape' && stack.length) { e.preventDefault(); return back(); }
   if (typing) return;
   if (e.key === '/' || (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); return openSearch(); }
-  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.matches('[data-open], [data-play], [data-oplay]')) {
+  if ((e.key === 'Enter' || e.key === ' ') && document.activeElement?.matches('[data-open], [data-play], [data-oplay], [data-live]')) {
     e.preventDefault(); document.activeElement.click();
   }
 });

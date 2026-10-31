@@ -38,6 +38,7 @@ CHANNELS = [
     ('TV85.tr', 'TV8,5', 'ulusal', '1080p', ['https://tv8.daioncdn.net/tv8bucuk/tv8bucuk.m3u8?app=tv8bucuk_web&ce=3']),
     ('TV4.tr', 'TV4', 'ulusal', '1080p', ['https://turkmedya-live.ercdn.net/tv4/tv4.m3u8']),
     ('BiKanal.tr', 'Bi Kanal', 'ulusal', '1080p', ['https://bikanal-live.ercdn.net/bikanal/bikanal.m3u8']),
+    ('360.tr', '360', 'ulusal', '1080p', ['https://turkmedya-live.ercdn.net/tv360/tv360.m3u8']),
     ('TRTGenc.tr', 'TRT Genç', 'ulusal', '1440p', ['https://tv-trtgenc.medya.trt.com.tr/master.m3u8'], 'tr'),
     ('DMAX.tr', 'DMAX', 'belgesel', '720p', ['https://dogus.daioncdn.net/dmax/dmax.m3u8?app=5a02c599-d17e-4982-9b04-090934d51af7']),
 
@@ -48,6 +49,7 @@ CHANNELS = [
     ('Tele1.tr', 'Tele 1', 'haber', '1080p', ['https://tele1-live.ercdn.net/tele1/tele1.m3u8']),
     ('HaberturkTV.tr', 'Habertürk', 'haber', '1080p', ['https://ciner.daioncdn.net/haberturktv/haberturktv.m3u8?app=c98ab0b0-50cc-495b-bb37-778e91f5ff5b&ce=3']),
     ('HaberGlobal.tr', 'Haber Global', 'haber', 'HD', ['yt:UCtc-a9ZUIg0_5HpsPxEO7Qg#EqoCJ8BPxtE']),
+    ('24TV.tr', 'TV24', 'haber', '1080p', ['https://turkmedya-live.ercdn.net/tv24/tv24.m3u8']),
     ('BloombergHT.tr', 'Bloomberg HT', 'haber', '720p', ['https://ciner-live.daioncdn.net/bloomberght/bloomberght.m3u8']),
     ('CNBCe.tr', 'CNBC-e', 'haber', 'HD', ['https://hnpsechtsc.turknet.ercdn.net/xpnvudnlsv/cnbc-e/cnbc-e.m3u8']),
     ('TBMMTV.tr', 'TBMM TV', 'haber', '720p', ['https://meclistv-live.ercdn.net/meclistv/meclistv.m3u8']),

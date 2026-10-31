@@ -2059,6 +2059,9 @@ function liveAction(a) {
     if (document.fullscreenElement || document.webkitFullscreenElement) {
       return (document.exitFullscreen || document.webkitExitFullscreen).call(document)?.catch?.(() => {});
     }
+    // On iPhone the video's own full screen is called first, inside the tap: after a refused page-level request
+    // the tap no longer counts and iOS blocks it.
+    if (/iPhone|iPod/.test(UA) && videoOnly()) return;
     const req = el.requestFullscreen || el.webkitRequestFullscreen;
     if (req) {
       try {

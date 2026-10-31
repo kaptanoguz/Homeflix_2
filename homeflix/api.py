@@ -7,9 +7,11 @@ import threading
 import time
 from collections import defaultdict
 
-from flask import Flask, abort, g, jsonify, render_template, request, send_file
+from urllib.parse import quote
 
-from . import library, livetv, media, metadata, online, state, subtitles
+from flask import Flask, Response, abort, g, jsonify, render_template, request, send_file
+
+from . import downloads, library, livetv, media, metadata, online, state, subtitles
 from .config import BASE_DIR, ONLINE_EMBED, POSTERS_DIR
 from .db import LOCAL_VIEWER, load_settings, save_settings, session
 from .names import fold, sequel_key
@@ -18,6 +20,7 @@ app = Flask(__name__, template_folder=os.path.join(BASE_DIR, 'templates'),
             static_folder=os.path.join(BASE_DIR, 'static'))
 settings = load_settings()
 library.settings_ref = settings
+downloads.set_limit(settings.get('download_mbps', downloads.DEFAULT_MBPS))
 
 
 VIEWER_COOKIE = 'hf_viewer'
@@ -501,6 +504,58 @@ def play(kind, iid):
     return media.stream(path, request.args.get('t', 0, type=float), audio)
 
 
+def _download_name(kind, iid, path):
+    """A readable file name for the saved copy: "Title (Year).mkv" or "Series S01E02.mkv"."""
+    ext = os.path.splitext(path)[1].lower()
+    with session() as c:
+        if kind == 'm':
+            r = c.execute("SELECT title, year FROM movies WHERE id = ?", (iid,)).fetchone()
+            base = f"{r['title']} ({r['year']})" if r and r['year'] else (r['title'] if r else '')
+        else:
+            r = c.execute("SELECT e.season, e.episode, COALESCE(s.display_title, s.title) AS stitle FROM episodes e "
+                          "JOIN series s ON s.id = e.series_id WHERE e.id = ?", (iid,)).fetchone()
+            base = f"{r['stitle']} S{r['season']:02d}E{r['episode']:02d}" if r else ''
+    base = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', ' ', (base or '').replace(': ', ' - '))
+    base = re.sub(r'\s+', ' ', base).strip(' .')
+    return (base + ext) if base else os.path.basename(path)
+
+
+@app.route('/api/download/status')
+def api_download_status():
+    return jsonify(downloads.status(viewer()))
+
+
+@app.route('/download/<kind>/<int:iid>')
+def download(kind, iid):
+    """The original file as an attachment: one download at a time per device, throttled to the shared limit.
+    Supports a single byte range so browsers can resume a broken download."""
+    path = media_path(kind, iid)
+    size = os.path.getsize(path)
+    name = _download_name(kind, iid, path)
+    start, end = 0, size - 1
+    rng = re.match(r'bytes=(\d*)-(\d*)$', request.headers.get('Range', '').strip())
+    if rng and (rng.group(1) or rng.group(2)):
+        if rng.group(1):
+            start = int(rng.group(1))
+            end = min(int(rng.group(2)), size - 1) if rng.group(2) else size - 1
+        else:
+            start = max(0, size - int(rng.group(2)))
+        if start > end or start >= size:
+            return Response(status=416, headers={'Content-Range': f'bytes */{size}'})
+    token = downloads.claim(viewer(), name, size)
+    if token is None:
+        return Response('Bu cihazda zaten bir indirme sürüyor. O bitince yenisini başlatabilirsiniz.', status=429,
+                        mimetype='text/plain', headers={'Retry-After': '30'})
+    length = end - start + 1
+    ascii_name = name.encode('ascii', 'replace').decode().replace('?', '_').replace('"', '')
+    headers = {'Content-Disposition': f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(name)}",
+               'Content-Length': str(length), 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-store'}
+    if rng and (rng.group(1) or rng.group(2)):
+        headers['Content-Range'] = f'bytes {start}-{end}/{size}'
+    return Response(downloads.reader(path, viewer(), token, start, length), status=206 if 'Content-Range' in headers else 200,
+                    mimetype='application/octet-stream', headers=headers, direct_passthrough=True)
+
+
 @app.route('/api/hls/<kind>/<int:iid>')
 def api_hls(kind, iid):
     path = media_path(kind, iid)
@@ -807,6 +862,8 @@ def api_settings():
             abort(403)
         d = request.get_json(force=True, silent=True) or {}
         values = {k: str(v).strip() for k, v in d.items() if k in ('movie_dir', 'series_dir', 'omdb_api_key') and str(v).strip()}
+        if 'download_mbps' in d:
+            values['download_mbps'] = str(downloads.set_limit(d['download_mbps']))
         settings.update(values)
         save_settings(values)
     with session() as c:
@@ -817,7 +874,7 @@ def api_settings():
     from .config import PORT
     # Folder paths and the API key are only shown to (and editable from) this computer, not other devices on the LAN.
     private = {k: settings.get(k, '') if local else '' for k in ('movie_dir', 'series_dir', 'omdb_api_key')}
-    return jsonify({**private, 'local': local, 'stats': stats, 'urls': [f"http://{ip}:{PORT}" for ip in lan_ips()]})
+    return jsonify({**private, 'local': local, 'stats': stats, 'download_mbps': downloads.limit_mbps(), 'urls': [f"http://{ip}:{PORT}" for ip in lan_ips()]})
 
 
 @app.route('/api/scan', methods=['POST'])

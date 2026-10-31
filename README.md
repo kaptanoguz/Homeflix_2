@@ -1,4 +1,4 @@
-# Homeflix 2
+# Homeflix
 
 A personal movie and TV platform for your home network: watch the movies and series on your own computer from your phone, TV or browser, in a Netflix-style interface.
 

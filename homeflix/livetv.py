@@ -35,6 +35,10 @@ CHANNELS = [
     ('TRT2.tr', 'TRT 2', 'ulusal', '1440p', ['https://tv-trt2.medya.trt.com.tr/master.m3u8'], 'tr'),
     ('ShowTV.tr', 'Show TV', 'ulusal', '1080p', ['https://ciner.daioncdn.net/showtv/showtv.m3u8?app=4bc856ef-4c68-4a94-bc87-37dfaaa66558']),
     ('TLC.tr', 'TLC', 'belgesel', '720p', ['https://dogus.daioncdn.net/tlc/tlc.m3u8?app=1aca0aa1-06e3-41ff-a8e5-38d7df475469']),
+    ('TV85.tr', 'TV8,5', 'ulusal', '1080p', ['https://tv8.daioncdn.net/tv8bucuk/tv8bucuk.m3u8?app=tv8bucuk_web&ce=3']),
+    ('TV4.tr', 'TV4', 'ulusal', '1080p', ['https://turkmedya-live.ercdn.net/tv4/tv4.m3u8']),
+    ('BiKanal.tr', 'Bi Kanal', 'ulusal', '1080p', ['https://bikanal-live.ercdn.net/bikanal/bikanal.m3u8']),
+    ('TRTGenc.tr', 'TRT Genç', 'ulusal', '1440p', ['https://tv-trtgenc.medya.trt.com.tr/master.m3u8'], 'tr'),
     ('DMAX.tr', 'DMAX', 'belgesel', '720p', ['https://dogus.daioncdn.net/dmax/dmax.m3u8?app=5a02c599-d17e-4982-9b04-090934d51af7']),
 
     ('TRTHaber.tr', 'TRT Haber', 'haber', '720p', ['https://tv-trthaber.medya.trt.com.tr/master.m3u8']),

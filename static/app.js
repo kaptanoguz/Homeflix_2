@@ -467,6 +467,30 @@ function detailHero(it, title, actions, metaHTML) {
     <div class="d-head"><h1>${esc(title)}</h1>${metaHTML ? `<div class="meta" style="margin-bottom:18px">${metaHTML}</div>` : ''}<div class="actions">${actions}</div></div></div>`;
 }
 
+// Downloads are for phones and computers; TVs (webOS, the Android TV app's WebView) have nowhere to save a file.
+const CAN_DOWNLOAD = !/Web0S|webOS|NetCast|HomeflixTV|SmartTV|Tizen/i.test(navigator.userAgent);
+function downloadButton(ref, size) {
+  if (!CAN_DOWNLOAD) return '';
+  return `<button class="round-btn" data-dl="${ref}" title="İndir${size ? ' · ' + fmtSize(size) : ''}" aria-label="İndir">${icon('download')}</button>`;
+}
+// One download at a time per device: the server refuses a second one, so check first and say why.
+async function startDownload(ref) {
+  const [kind, id] = ref.split(':');
+  let st;
+  try { st = await api.get('/api/download/status'); } catch { return toast('Sunucuya ulaşılamadı.'); }
+  if (st.mine) {
+    const pct = st.mine.size ? Math.floor(st.mine.sent / st.mine.size * 100) : 0;
+    return toast(`${icon('download')} Bu cihazda zaten bir indirme sürüyor: <b>${esc(st.mine.name)}</b> (%${pct}). O bitince yenisini başlatabilirsiniz.`, 4500);
+  }
+  const a = document.createElement('a');
+  a.href = `/download/${kind}/${id}`;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  toast(`${icon('download')} İndirme başladı. Ağı yormamak için hız sınırlıdır, bu biraz sürebilir.`, 4000);
+}
+
 function listButton(it) {
   const on = inList(it);
   return `<button class="round-btn${on ? ' on' : ''}" data-list="${it.key}" title="${on ? 'Listemden çıkar' : 'Listeme ekle'}" aria-label="Listem">${icon(on ? 'check' : 'plus')}</button>`;
@@ -480,7 +504,7 @@ function renderDetail(it) {
     const resume = prog && !prog[2] && prog[0] > 30;
     const vid = resume ? prog[4] : it.id;
     actions = `<button class="btn btn-play" data-play="m:${vid}">${icon('play', 'fill')}${resume ? 'Devam Et' : 'Oynat'}</button>
-      ${resume ? `<button class="btn btn-ghost" data-play="m:${vid}" data-from="0">${icon('refresh')}Baştan Başla</button>` : ''}${listButton(it)}`;
+      ${resume ? `<button class="btn btn-ghost" data-play="m:${vid}" data-from="0">${icon('refresh')}Baştan Başla</button>` : ''}${listButton(it)}${downloadButton('m:' + vid, (it.versions.find(v => v.id === vid) || {}).sz)}`;
     if (resume && prog[1]) resumeNote = `<div class="resume-note"><div class="progress-line"><i style="width:${clamp(prog[0] / prog[1] * 100, 2, 100)}%"></i></div>${fmtLeft(prog[0], prog[1])}</div>`;
   } else {
     actions = `<button class="btn btn-play" id="series-play" data-play="">${icon('play', 'fill')}Oynat</button>${listButton(it)}`;
@@ -494,7 +518,7 @@ function renderDetail(it) {
   if (col) facts.push(`<div>Koleksiyon: <a data-open="${col.key}">${esc(col.name)}</a></div>`);
   if (it.kind === 'm') facts.push(`<div>Kütüphaneye eklendi: <b>${new Date(it.add * 1000).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>`);
   const versions = it.kind === 'm' && it.versions.length > 1 ? `<div class="section"><div class="section-head"><h3>Sürümler</h3></div><div class="versions">
-    ${it.versions.map((v, i) => `<button class="version" data-play="m:${v.id}" data-from="0">${icon('play', 'fill')}<span>${esc(v.t)}${i === 0 ? ' · varsayılan' : ''}</span><small>${v.sz ? fmtSize(v.sz) : ''}</small></button>`).join('')}</div></div>` : '';
+    ${it.versions.map((v, i) => `<div class="version-row"><button class="version" data-play="m:${v.id}" data-from="0">${icon('play', 'fill')}<span>${esc(v.t)}${i === 0 ? ' · varsayılan' : ''}</span><small>${v.sz ? fmtSize(v.sz) : ''}</small></button>${CAN_DOWNLOAD ? `<button class="version-dl icon-btn" data-dl="m:${v.id}" title="Bu sürümü indir" aria-label="Bu sürümü indir">${icon('download')}</button>` : ''}</div>`).join('')}</div></div>` : '';
   $('#detail-sheet').innerHTML = `
     <button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>
     ${detailHero(it, it.t, actions, metaLine(it))}
@@ -548,12 +572,12 @@ async function loadEpisodes(s, season, tries = 0) {
   box.innerHTML = `<div class="section-head"><h3>Bölümler</h3>${seasonSel}</div><div class="eps">${eps.map(e => {
     const pct = e.dur && !e.fin ? clamp(e.pos / e.dur * 100, 2, 100) : e.fin ? 100 : 0;
     const thumb = e.still ? `/img/still/${e.id}` : s.bd ? img('s', s.id, 'backdrop', 400) : s.ph ? img('s', s.id, 'poster', 342) : '';
-    return `<div class="ep${target.id === e.id ? ' now' : ''}" tabindex="0" role="button" data-play="e:${e.id}">
+    return `<div class="ep${target.id === e.id ? ' now' : ''}${CAN_DOWNLOAD ? ' has-dl' : ''}" tabindex="0" role="button" data-play="e:${e.id}">
       <div class="num">${e.n}</div>
       <div class="thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy" onload="this.classList.add('ok')">` : ''}<div class="play-glyph"><span>${icon('play', 'fill')}</span></div>
         ${pct ? `<div class="pbar progress-line"><i style="width:${pct}%"></i></div>` : ''}</div>
       <div><h4><span>${esc(e.name || `${e.n}. Bölüm`)}</span><small>${e.fin ? `<span class="done">${icon('check')}İzlendi</span>` : e.rt ? e.rt + ' dk' : ''}</small></h4>
-        <p>${esc(e.ov || e.file)}</p></div></div>`;
+        <p>${esc(e.ov || e.file)}</p></div>${CAN_DOWNLOAD ? `<button class="ep-dl icon-btn" data-dl="e:${e.id}" title="Bölümü indir" aria-label="Bölümü indir">${icon('download')}</button>` : ''}</div>`;
   }).join('')}</div>`;
   const sel = $('#season-sel');
   if (sel) sel.onchange = () => loadEpisodes(s, +sel.value);
@@ -639,6 +663,7 @@ async function openSettings() {
               <button class="btn btn-ghost btn-sm" data-action="enrich">Eksik Bilgileri Tekrar Ara</button>
             </div>
           </div></section>
+        ${s.local ? downloadLimitSection(s.download_mbps) : ''}
         <section class="st-card"><h3>Diğer cihazlardan bağlan</h3>
           <div class="urls">${(s.urls.length ? s.urls : [location.origin]).map(u => `<div class="url"><span>${esc(u)}</span><button class="icon-btn" data-copy="${esc(u)}" title="Kopyala">${icon('copy')}</button></div>`).join('')}</div>
           <p class="st-hint">Telefon, tablet veya TV tarayıcısından bu adrese girin. Aynı Wi-Fi ağında olmanız yeterli.</p></section>
@@ -654,6 +679,19 @@ async function openSettings() {
       </div>
     </div>
     <p class="st-foot">Homeflix 2 · Film bilgileri TMDb, Emby ve OMDb'den alınır.</p>`;
+}
+
+// Speed limit shared by all downloads together, so people watching are never slowed down. Set from this computer only.
+const DL_LIMITS = [10, 20, 40, 80, 200];
+function downloadLimitSection(cur) {
+  return `<section class="st-card" id="dl-limit"><h3>İndirme hız sınırı</h3>
+    <div class="chips wrap" role="group" aria-label="İndirme hız sınırı">${DL_LIMITS.map(v => `<button class="chip${v === cur ? ' on' : ''}" data-dl-limit="${v}" aria-pressed="${v === cur}">${v} Mbit/sn</button>`).join('')}</div>
+    <p class="st-hint">Bütün indirmeler birlikte bu hızı geçmez. Her cihaz aynı anda yalnızca bir dosya indirebilir.</p></section>`;
+}
+async function setDownloadLimit(v) {
+  try { await api.post('/api/settings', { download_mbps: v }); } catch { return toast('Kaydedilemedi'); }
+  $$('[data-dl-limit]').forEach(b => { const on = +b.dataset.dlLimit === v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
+  toast(`İndirme sınırı ${v} Mbit/sn`);
 }
 
 // Random movie filters are kept per device, like volume and subtitle style. Several genres match any of them.
@@ -2172,6 +2210,10 @@ document.addEventListener('click', async e => {
     if ($('#search').classList.contains('open')) { back(); await new Promise(r => setTimeout(r, 30)); }
     return playOnline(op.dataset.oplay, op.dataset.from !== undefined ? { from: +op.dataset.from } : {});
   }
+  const dl = t.closest('[data-dl]');
+  if (dl) { e.stopPropagation(); return startDownload(dl.dataset.dl); }
+  const dlim = t.closest('[data-dl-limit]');
+  if (dlim) return setDownloadLimit(+dlim.dataset.dlLimit);
   const pl = t.closest('[data-play]');
   if (pl && pl.dataset.play) {
     const [kind, id] = pl.dataset.play.split(':');

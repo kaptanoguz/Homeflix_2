@@ -133,11 +133,11 @@ def find(cid):
 
 # ---------------------------------------------------------------- on-air check
 
-def _read(url, headers=None):
-    """(status, text, response headers) of a playlist; reads at most 256 KB."""
+def _read(url, headers=None, limit=262144):
+    """(status, text, response headers, final URL) of a playlist or page; reads at most `limit` bytes."""
     r = _http.get(url, timeout=CHECK_TIMEOUT, headers=headers or {}, stream=True)
     try:
-        body = r.raw.read(262144, decode_content=True).decode('utf-8', 'replace')
+        body = r.raw.read(limit, decode_content=True).decode('utf-8', 'replace')
     finally:
         r.close()
     return r.status_code, body, r.headers, r.url
@@ -222,14 +222,15 @@ _yt = {}
 
 def youtube_live(channel_id):
     """The id of a YouTube channel's current live video (embedding the video works on more devices than YouTube's
-    by-channel live embed). Looked up at most every YT_MAX_AGE; None when it can't be found."""
+    by-channel live embed). Looked up at most every YT_MAX_AGE; None when it can't be found. The video id sits
+    about 800 KB into YouTube's page, so the whole page is read."""
     hit = _yt.get(channel_id)
     if hit and time.time() - hit[0] < YT_MAX_AGE:
         return hit[1]
     vid = hit[1] if hit else None
     try:
         status, body, _, _ = _read(f'https://www.youtube.com/channel/{channel_id}/live',
-                                   {'Accept-Language': 'en', 'Cookie': 'CONSENT=YES+1'})
+                                   {'Accept-Language': 'en', 'Cookie': 'CONSENT=YES+1'}, limit=3_000_000)
         m = re.search(r'<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([\w-]{11})"', body) or \
             re.search(r'"videoId":"([\w-]{11})"', body)
         if status == 200 and m:

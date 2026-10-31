@@ -8,6 +8,7 @@ import os
 import re
 import threading
 import time
+from urllib.parse import quote, urljoin, urlsplit
 
 import requests
 
@@ -41,7 +42,6 @@ CHANNELS = [
     ('AHaber.tr', 'A Haber', 'haber', '1080p', ['https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/ahaber/ahaber.m3u8']),
     ('HalkTV.tr', 'Halk TV', 'haber', '1080p', ['https://halktv-live.daioncdn.net/halktv/halktv.m3u8']),
     ('Tele1.tr', 'Tele 1', 'haber', '1080p', ['https://tele1-live.ercdn.net/tele1/tele1.m3u8']),
-    ('TVNET.tr', 'TVNET', 'haber', '1080p', ['https://tvnet-live.lg.mncdn.com/tvnet/tvnet/playlist.m3u8']),
     ('BloombergHT.tr', 'Bloomberg HT', 'haber', '720p', ['https://ciner-live.daioncdn.net/bloomberght/bloomberght.m3u8']),
     ('CNBCe.tr', 'CNBC-e', 'haber', 'HD', ['https://hnpsechtsc.turknet.ercdn.net/xpnvudnlsv/cnbc-e/cnbc-e.m3u8']),
     ('TBMMTV.tr', 'TBMM TV', 'haber', '720p', ['https://meclistv-live.ercdn.net/meclistv/meclistv.m3u8']),
@@ -61,7 +61,6 @@ CHANNELS = [
     ('MinikaGo.tr', 'Minika Go', 'cocuk', '720p', ['https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/minikago/minikago.m3u8']),
 
     ('TRTMuzik.tr', 'TRT Müzik', 'muzik', '720p', ['https://tv-trtmuzik.medya.trt.com.tr/master.m3u8']),
-    ('KralPopTV.tr', 'Kral Pop', 'muzik', '720p', ['https://dogus-live.daioncdn.net/kralpoptv/playlist.m3u8']),
     ('PowerTurkTV.tr', 'Power Türk', 'muzik', '1080p', ['https://livetv.powerapp.com.tr/powerturkTV/powerturkhd.smil/playlist.m3u8']),
     ('DreamTurk.tr', 'Dream Türk', 'muzik', '720p', ['https://live.duhnet.tv/S2/HLS_LIVE/dreamturknp/playlist.m3u8']),
 
@@ -114,10 +113,13 @@ def channels():
                 'logo': f"/img/live/{ch['id']}" if logo_file(ch['id']) else '', 'ok': st.get('ok')}
         if url.startswith('yt:'):
             item['yt'] = url[3:]
+            vid = _yt.get(url[3:], (0, None))[1]
+            if vid:
+                item['ytv'] = vid
         else:
             item['url'] = url
             item['alt'] = [u for u in ch['urls'] if u != url and not u.startswith('yt:')]
-            # False: the broadcaster doesn't let other sites read the stream, so the browser plays it natively.
+            # False: the broadcaster's playlists have no CORS header, so browsers read them through /api/live/pl.
             item['cors'] = st.get('cors')
         if ch['tr']:
             item['tr'] = 1
@@ -131,21 +133,111 @@ def find(cid):
 
 # ---------------------------------------------------------------- on-air check
 
+def _read(url, headers=None):
+    """(status, text, response headers) of a playlist; reads at most 256 KB."""
+    r = _http.get(url, timeout=CHECK_TIMEOUT, headers=headers or {}, stream=True)
+    try:
+        body = r.raw.read(262144, decode_content=True).decode('utf-8', 'replace')
+    finally:
+        r.close()
+    return r.status_code, body, r.headers, r.url
+
+
 def _check_url(url):
-    """(on air, CORS allowed) for one stream. Downloads only the playlist text (a few KB), never video."""
+    """(on air, CORS allowed) for one stream. Downloads only playlist text (a few KB), never video: the master
+    playlist and its first quality, since a master can answer while every quality behind it is refused."""
     if url.startswith('yt:'):
+        youtube_live(url[3:])  # when the lookup fails, the app falls back to YouTube's by-channel embed
         return True, None
     try:
-        r = _http.get(url, timeout=CHECK_TIMEOUT, headers={'Origin': 'http://homeflix.local'}, stream=True)
-        try:
-            body = r.raw.read(65536, decode_content=True).decode('utf-8', 'replace')
-        finally:
-            r.close()
+        status, body, headers, final = _read(url, {'Origin': 'http://homeflix.local'})
+        if status != 200 or '#EXTM3U' not in body[:1024]:
+            return False, None
+        cors = headers.get('Access-Control-Allow-Origin') in ('*', 'http://homeflix.local')
+        variant = next((ln.strip() for ln in body.splitlines() if ln.strip() and not ln.startswith('#')), '')
+        if '#EXT-X-STREAM-INF' in body and variant:
+            vstatus, vbody, vheaders, _ = _read(urljoin(final, variant), {'Origin': 'http://homeflix.local'})
+            if vstatus != 200 or '#EXTM3U' not in vbody[:1024]:
+                return False, None
+            cors = cors and vheaders.get('Access-Control-Allow-Origin') in ('*', 'http://homeflix.local')
     except (requests.RequestException, OSError):
         return False, None
-    ok = r.status_code == 200 and '#EXTM3U' in body[:1024]
-    cors = r.headers.get('Access-Control-Allow-Origin') in ('*', 'http://homeflix.local')
-    return ok, cors
+    return True, cors
+
+
+# ---------------------------------------------------------------- playlist pass-through
+
+def _base_domain(host):
+    return '.'.join(host.split('.')[-2:])
+
+
+def proxy_allowed(cid, url):
+    """Only playlists on the channel's own servers (same domain as its listed URLs) pass through."""
+    ch = find(cid)
+    host = urlsplit(url).hostname or ''
+    if not ch or urlsplit(url).scheme not in ('http', 'https'):
+        return False
+    return any(_base_domain(urlsplit(u).hostname or '') == _base_domain(host) for u in ch['urls'] if not u.startswith('yt:'))
+
+
+_URI_ATTR = re.compile(r'URI="([^"]+)"')
+
+
+def proxy_playlist(cid, url):
+    """A channel's playlist text, for browsers that may not read it from the broadcaster (no CORS header). Links to
+    other playlists point back here; links to video segments become absolute, so the video itself still goes from
+    the broadcaster straight to the device. Returns (status, text)."""
+    try:
+        status, body, _, final = _read(url)
+    except (requests.RequestException, OSError):
+        return 502, ''
+    if status != 200 or '#EXTM3U' not in body[:1024]:
+        return status if status != 200 else 502, ''
+
+    def link(u, playlist):
+        absolute = urljoin(final, u.strip())
+        return f'/api/live/pl/{cid}?u={quote(absolute, safe="")}' if playlist else absolute
+
+    out, next_is_playlist = [], False
+    for ln in body.splitlines():
+        if ln.startswith('#'):
+            if ln.startswith('#EXT-X-STREAM-INF'):
+                next_is_playlist = True
+            is_pl = ln.startswith(('#EXT-X-MEDIA', '#EXT-X-I-FRAME-STREAM-INF'))
+            ln = _URI_ATTR.sub(lambda m: f'URI="{link(m.group(1), is_pl or ".m3u8" in m.group(1))}"', ln)
+            out.append(ln)
+        elif ln.strip():
+            out.append(link(ln, next_is_playlist or '.m3u8' in ln.split('?')[0]))
+            next_is_playlist = False
+        else:
+            out.append(ln)
+    return 200, '\n'.join(out) + '\n'
+
+
+# ---------------------------------------------------------------- YouTube live streams
+
+YT_MAX_AGE = 3 * 3600
+_yt = {}
+
+
+def youtube_live(channel_id):
+    """The id of a YouTube channel's current live video (embedding the video works on more devices than YouTube's
+    by-channel live embed). Looked up at most every YT_MAX_AGE; None when it can't be found."""
+    hit = _yt.get(channel_id)
+    if hit and time.time() - hit[0] < YT_MAX_AGE:
+        return hit[1]
+    vid = hit[1] if hit else None
+    try:
+        status, body, _, _ = _read(f'https://www.youtube.com/channel/{channel_id}/live',
+                                   {'Accept-Language': 'en', 'Cookie': 'CONSENT=YES+1'})
+        m = re.search(r'<link rel="canonical" href="https://www\.youtube\.com/watch\?v=([\w-]{11})"', body) or \
+            re.search(r'"videoId":"([\w-]{11})"', body)
+        if status == 200 and m:
+            vid = m.group(1)
+    except (requests.RequestException, OSError):
+        pass
+    _yt[channel_id] = (time.time(), vid)
+    return vid
 
 
 def check_channel(cid):

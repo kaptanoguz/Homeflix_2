@@ -1954,16 +1954,23 @@ function tuneLive(ch) {
   if (ch.yt) {
     const f = $('#l-frame');
     f.hidden = false;
-    f.src = `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(ch.yt)}&autoplay=1&playsinline=1&rel=0`;
+    // The current live video by id (looked up by the server) plays on more devices than the by-channel embed.
+    f.src = ch.ytv ? `https://www.youtube.com/embed/${encodeURIComponent(ch.ytv)}?autoplay=1&playsinline=1&rel=0`
+      : `https://www.youtube.com/embed/live_stream?channel=${encodeURIComponent(ch.yt)}&autoplay=1&playsinline=1&rel=0`;
     f.onload = () => { if (seq === LV.seq) $('#l-loading').classList.add('off'); };
     return;
   }
   // Ways to try, in order: each stream URL with hls.js (or natively), then natively when hls.js was refused.
   const urls = [ch.url, ...(ch.alt || [])];
   const tries = [];
+  // Some broadcasters send their playlists without a CORS header, which hls.js needs: the Homeflix server then
+  // passes just the playlist text through (/api/live/pl); the video still comes straight from the broadcaster.
+  const proxied = u => `/api/live/pl/${encodeURIComponent(ch.id)}?u=${encodeURIComponent(u)}`;
   urls.forEach(u => {
-    if (NATIVE_HLS() || ch.cors === false && canNative()) tries.push(['native', u]);
-    else { tries.push(['hls', u]); if (canNative()) tries.push(['native', u]); }
+    if (NATIVE_HLS()) { tries.push(['native', u]); return; }  // Apple and LG play HLS themselves; CORS doesn't apply
+    if (ch.cors !== false) tries.push(['hls', u]);
+    tries.push(['hls', proxied(u)]);
+    if (canNative()) tries.push(['native', u]);
   });
   liveAttempt(ch, tries, 0, seq);
 }
@@ -1982,7 +1989,7 @@ function liveAttempt(ch, tries, i, seq) {
   };
   const v = lVideo();
   clearTimeout(LV.failT);
-  LV.failT = setTimeout(next, 10000);  // nothing on screen after 10 s: try the next way
+  LV.failT = setTimeout(next, 20000);  // nothing on screen after 20 s: try the next way
   v.onplaying = () => { if (seq === LV.seq) { clearTimeout(LV.failT); $('#l-loading').classList.add('off'); } };
   v.onerror = () => next();
   const start = () => v.play().catch(() => { v.muted = true; updateLiveVol(); v.play().catch(() => {}); });

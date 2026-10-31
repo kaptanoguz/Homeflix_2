@@ -679,6 +679,20 @@ def api_live_fail():
     return ('', 204)
 
 
+@app.route('/api/live/pl/<cid>')
+def api_live_playlist(cid):
+    """A channel's playlist text passed through for browsers (the broadcaster sends no CORS header). Never video."""
+    url = request.args.get('u', '')
+    if not livetv.proxy_allowed(cid, url):
+        abort(404)
+    status, text = livetv.proxy_playlist(cid, url)
+    if status != 200:
+        abort(502)
+    resp = app.response_class(text, mimetype='application/vnd.apple.mpegurl')
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
+
 @app.route('/img/live/<cid>')
 def img_live(cid):
     path = livetv.logo_file(cid) if re.fullmatch(r'[A-Za-z0-9.]{2,64}', cid) else None

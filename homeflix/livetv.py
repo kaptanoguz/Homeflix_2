@@ -32,6 +32,9 @@ CHANNELS = [
     ('A2TV.tr', 'a2', 'ulusal', '1080p', ['https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/a2tv/a2tv.m3u8']),
     ('TRTTurk.tr', 'TRT Türk', 'ulusal', '720p', ['https://tv-trtturk.medya.trt.com.tr/master.m3u8']),
     ('TRT2.tr', 'TRT 2', 'ulusal', '1440p', ['https://tv-trt2.medya.trt.com.tr/master.m3u8'], 'tr'),
+    ('ShowTV.tr', 'Show TV', 'ulusal', '1080p', ['https://ciner.daioncdn.net/showtv/showtv.m3u8?app=4bc856ef-4c68-4a94-bc87-37dfaaa66558']),
+    ('TLC.tr', 'TLC', 'belgesel', '720p', ['https://dogus.daioncdn.net/tlc/tlc.m3u8?app=1aca0aa1-06e3-41ff-a8e5-38d7df475469']),
+    ('DMAX.tr', 'DMAX', 'belgesel', '720p', ['https://dogus.daioncdn.net/dmax/dmax.m3u8?app=5a02c599-d17e-4982-9b04-090934d51af7']),
 
     ('TRTHaber.tr', 'TRT Haber', 'haber', '720p', ['https://tv-trthaber.medya.trt.com.tr/master.m3u8']),
     ('NTV.tr', 'NTV', 'haber', 'HD', ['https://dogus.daioncdn.net/ntv/ntv.m3u8?app=ntv_web']),
@@ -43,6 +46,8 @@ CHANNELS = [
     ('CNBCe.tr', 'CNBC-e', 'haber', 'HD', ['https://hnpsechtsc.turknet.ercdn.net/xpnvudnlsv/cnbc-e/cnbc-e.m3u8']),
     ('TBMMTV.tr', 'TBMM TV', 'haber', '720p', ['https://meclistv-live.ercdn.net/meclistv/meclistv.m3u8']),
 
+    ('TRTSpor.tr', 'TRT Spor', 'spor', 'HD', ['https://tv-trtspor1.medya.trt.com.tr/master.m3u8',
+                                              'https://trt.daioncdn.net/trtspor/master.m3u8?app=web']),
     ('TRTSporYildiz.tr', 'TRT Spor Yıldız', 'spor', '1440p', ['https://trt.daioncdn.net/trtspor-yildiz/master.m3u8?app=web&platform=trtspor'], 'tr'),
     ('ASpor.tr', 'A Spor', 'spor', '1080p', ['https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/aspor/aspor.m3u8']),
     ('HTSporTV.tr', 'HT Spor', 'spor', '1080p', ['https://ciner.daioncdn.net/ht-spor/ht-spor.m3u8?app=web']),

@@ -27,6 +27,8 @@
     <a class="tab" href="#list" data-tab="list">Listem</a>
   </nav>
   <div class="nav-actions">
+    <a class="icon-btn m-only" href="#kids" aria-label="Kids Zone" title="Kids Zone"><svg class="icon" style="color:#ffb627"><use href="#i-kids"/></svg></a>
+    <a class="icon-btn m-only" href="#list" aria-label="Listem" title="Listem"><svg class="icon"><use href="#i-bookmark"/></svg></a>
     <button class="icon-btn" data-action="search" title="Ara ( / )" aria-label="Ara"><svg class="icon"><use href="#i-search"/></svg></button>
     <button class="icon-btn" data-action="shuffle" title="Rastgele film" aria-label="Rastgele film"><svg class="icon"><use href="#i-shuffle"/></svg></button>
     <button class="icon-btn" data-action="settings" title="Ayarlar" aria-label="Ayarlar"><svg class="icon"><use href="#i-settings"/></svg></button>
@@ -42,8 +44,6 @@
   <a href="#collections" data-tab="collections"><svg class="icon"><use href="#i-stack"/></svg>Koleksiyon</a>
   <a href="#online" data-tab="online"><svg class="icon"><use href="#i-globe"/></svg>Online</a>
   <a href="#live" data-tab="live"><svg class="icon"><use href="#i-live"/></svg>Canlı</a>
-  <a href="#kids" data-tab="kids" class="kids-tab"><svg class="icon"><use href="#i-kids"/></svg>Kids</a>
-  <a href="#list" data-tab="list"><svg class="icon"><use href="#i-bookmark"/></svg>Listem</a>
 </nav>
 
 <div class="overlay" id="detail" role="dialog" aria-modal="true">
@@ -127,7 +127,7 @@
 <div class="lplayer" id="lplayer">
   <div class="l-stage" id="l-stage">
     <video id="l-video" playsinline webkit-playsinline autoplay></video>
-    <iframe id="l-frame" title="Canlı yayın" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen hidden></iframe>
+    <iframe id="l-frame" title="Canlı yayın" referrerpolicy="strict-origin-when-cross-origin" allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowfullscreen hidden></iframe>
     <div class="l-loading" id="l-loading"><div class="l-logo" id="l-loading-logo"></div><div class="spin"></div></div>
     <div class="l-error" id="l-error" hidden></div>
     <div class="l-osd" id="l-osd"></div>

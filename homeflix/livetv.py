@@ -50,7 +50,7 @@ CHANNELS = [
     ('HaberturkTV.tr', 'Habertürk', 'haber', '1080p', ['https://ciner.daioncdn.net/haberturktv/haberturktv.m3u8?app=c98ab0b0-50cc-495b-bb37-778e91f5ff5b&ce=3']),
     ('HaberGlobal.tr', 'Haber Global', 'haber', 'HD', ['yt:UCtc-a9ZUIg0_5HpsPxEO7Qg#EqoCJ8BPxtE']),
     ('24TV.tr', 'TV24', 'haber', '1080p', ['https://turkmedya-live.ercdn.net/tv24/tv24.m3u8']),
-    ('BloombergHT.tr', 'Bloomberg HT', 'haber', '720p', ['https://ciner-live.daioncdn.net/bloomberght/bloomberght.m3u8']),
+    ('BloombergHT.tr', 'Bloomberg HT', 'haber', '720p', ['https://ciner.daioncdn.net/bloomberght/bloomberght.m3u8?app=201b9556-b11c-4d92-b264-f21fd24e9aaf&ce=3']),
     ('CNBCe.tr', 'CNBC-e', 'haber', 'HD', ['https://hnpsechtsc.turknet.ercdn.net/xpnvudnlsv/cnbc-e/cnbc-e.m3u8']),
     ('TBMMTV.tr', 'TBMM TV', 'haber', '720p', ['https://meclistv-live.ercdn.net/meclistv/meclistv.m3u8']),
 
@@ -59,6 +59,7 @@ CHANNELS = [
     ('TRTSporYildiz.tr', 'TRT Spor Yıldız', 'spor', '1440p', ['https://trt.daioncdn.net/trtspor-yildiz/master.m3u8?app=web&platform=trtspor'], 'tr'),
     ('ASpor.tr', 'A Spor', 'spor', '1080p', ['https://rnttwmjcin.turknet.ercdn.net/lcpmvefbyo/aspor/aspor.m3u8']),
     ('HTSporTV.tr', 'HT Spor', 'spor', '1080p', ['https://ciner.daioncdn.net/ht-spor/ht-spor.m3u8?app=web']),
+    ('FIFAPlus.uk', 'FIFA+', 'spor', '720p', ['https://a62dad94.wurl.com/master/f36d25e7e52f1ba8d7e56eb859c636563214f541/UmFrdXRlblRWLWV1X0ZJRkFQbHVzRW5nbGlzaF9ITFM/playlist.m3u8']),
 
     ('TRTBelgesel.tr', 'TRT Belgesel', 'belgesel', '720p', ['https://tv-trtbelgesel.medya.trt.com.tr/master.m3u8']),
     ('NHKWorldJapan.jp', 'NHK World', 'belgesel', '1080p', ['https://masterpl.hls.nhkworld.jp/hls/w/live/smarttv.m3u8',
@@ -70,6 +71,22 @@ CHANNELS = [
 
     ('TRTMuzik.tr', 'TRT Müzik', 'muzik', '720p', ['https://tv-trtmuzik.medya.trt.com.tr/master.m3u8']),
     ('PowerTurkTV.tr', 'Power Türk', 'muzik', '1080p', ['https://livetv.powerapp.com.tr/powerturkTV/powerturkhd.smil/playlist.m3u8']),
+    ('PowerTV.tr', 'Power TV', 'muzik', '1080p', ['https://livetv.powerapp.com.tr/powerTV/powerhd.smil/playlist.m3u8']),
+    ('PowerTurkTaptaze.tr', 'Power Türk Taptaze', 'muzik', '1080p', ['https://listen.powerapp.com.tr/pturktaptaze/taptaze.smil/playlist.m3u8']),
+    ('PowerTurkSlow.tr', 'Power Türk Slow', 'muzik', '1080p', ['https://listen.powerapp.com.tr/pturkslow/slow.smil/playlist.m3u8']),
+    ('PowerTurkAkustik.tr', 'Power Türk Akustik', 'muzik', '1080p', ['https://listen.powerapp.com.tr/pturkakustik/akustik.smil/playlist.m3u8']),
+    ('PowerLove.tr', 'Power Love', 'muzik', '1080p', ['https://listen.powerapp.com.tr/plove/love.smil/playlist.m3u8']),
+    ('PowerDance.tr', 'Power Dance', 'muzik', '1080p', ['https://listen.powerapp.com.tr/dance/dance.smil/playlist.m3u8']),
+    ('PowerPlus.tr', 'Power Plus', 'muzik', '1080p', ['https://listen.powerapp.com.tr/pplus/plus.smil/playlist.m3u8']),
+    ('PowerPop.tr', 'Power Pop', 'muzik', '1080p', ['https://listen.powerapp.com.tr/ppop/pop.smil/playlist.m3u8']),
+    ('Number1TV.tr', 'Number1', 'muzik', 'HD', ['https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/broadcast_5c9e17cd59e8b.smil/playlist.m3u8']),
+    ('Number1Turk.tr', 'Number1 Türk', 'muzik', 'HD', ['https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/broadcast_5c9e187770143.smil/playlist.m3u8']),
+    ('Number1Ask.tr', 'Number1 Aşk', 'muzik', '720p', ['https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/u_stream_5c9e18f9cea15_1/playlist.m3u8',
+                                                       'https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/broadcast_5c9e18f9c54e6.smil/playlist.m3u8']),
+    ('Number1Dance.tr', 'Number1 Dance', 'muzik', '720p', ['https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/u_stream_5c9e2aa8acf44_1/playlist.m3u8',
+                                                          'https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/broadcast_5c9e2aa89e721.smil/playlist.m3u8']),
+    ('Number1Rap.tr', 'Number1 Rap', 'muzik', '720p', ['https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/u_stream_5c9e198784bdc_1/playlist.m3u8',
+                                                      'https://b01c02nl.mediatriple.net/videoonlylive/mtkgeuihrlfwlive/broadcast_5c9e19877b340.smil/playlist.m3u8']),
     ('DreamTurk.tr', 'Dream Türk', 'muzik', '720p', ['https://live.duhnet.tv/S2/HLS_LIVE/dreamturknp/playlist.m3u8']),
 
     ('SkyNews.uk', 'Sky News', 'dunya', 'HD', ['yt:UCoMdktPbSTixAyNGwb-UYkQ']),
@@ -84,7 +101,8 @@ CHANNELS = [
 ]
 
 CHECK_EVERY = 6 * 3600
-CHECK_TIMEOUT = 12
+# Some broadcaster CDNs (ATV's) take up to ~10 s to answer, so a shorter limit hides working channels.
+CHECK_TIMEOUT = 20
 # A channel is hidden only after this many failed checks in a row, so one hiccup doesn't make it disappear.
 DEAD_AFTER = 2
 LOGO_LIST = 'https://iptv-org.github.io/api/logos.json'

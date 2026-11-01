@@ -30,11 +30,11 @@ function fmtTime(t) {
 function fmtRuntime(min) {
   if (!min) return '';
   const h = Math.floor(min / 60), m = min % 60;
-  return h ? `${h} sa${m ? ' ' + m + ' dk' : ''}` : `${m} dk`;
+  return h ? (m ? T('{h} sa {m} dk', { h, m }) : T('{h} sa', { h })) : T('{m} dk', { m });
 }
 function fmtLeft(pos, dur) {
   const left = Math.max(0, Math.round((dur - pos) / 60));
-  return left >= 60 ? `${Math.floor(left / 60)} sa ${left % 60} dk kaldı` : `${left} dk kaldı`;
+  return left >= 60 ? T('{h} sa {m} dk kaldı', { h: Math.floor(left / 60), m: left % 60 }) : T('{m} dk kaldı', { m: left });
 }
 function fmtSize(b) { return b > 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.round(b / 1e6) + ' MB'; }
 function hue(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
@@ -145,8 +145,8 @@ function artHTML(it, w = 342) {
 function posterCard(it, { caption = false, current = false } = {}) {
   const prog = it.kind === 'm' ? movieProgress(it) : null;
   const pct = prog && !prog[2] && prog[1] ? clamp(prog[0] / prog[1] * 100, 2, 100) : 0;
-  const sub = [it.y, it.kind === 's' ? `${it.seasons} sezon` : it.kind === 'os' ? 'Dizi' : fmtRuntime(it.rt)].filter(Boolean).join(' · ');
-  const flag = it.online ? (localOf(it) ? '<span class="flag own">KÜTÜPHANEDE</span>' : '') : isNew(it) && !caption ? '<span class="flag new">YENİ</span>' : '';
+  const sub = [it.y, it.kind === 's' ? T('{n} sezon', { n: it.seasons }) : it.kind === 'os' ? T('Dizi') : fmtRuntime(it.rt)].filter(Boolean).join(' · ');
+  const flag = it.online ? (localOf(it) ? `<span class="flag own">${T('KÜTÜPHANEDE')}</span>` : '') : isNew(it) && !caption ? `<span class="flag new">${T('YENİ')}</span>` : '';
   return `<div class="card${current ? ' current' : ''}" tabindex="0" role="button" data-open="${it.key}" aria-label="${esc(it.t)}">
     <div class="art">${artHTML(it)}
       ${flag}
@@ -166,10 +166,10 @@ function continueCard(c) {
   const pct = c.dur ? clamp(c.pos / c.dur * 100, 2, 100) : 0;
   return `<div class="card land" tabindex="0" role="button" data-play="${c.kind}:${c.id}" aria-label="${esc(c.title)}">
     <div class="art">${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('ok')" onerror="this.remove()">` : `<div class="ph" style="--h:${hue(c.title)}">${esc(c.title)}</div>`}
-      ${c.up_next ? '<span class="flag new">SIRADAKİ</span>' : ''}
-      <button class="x" data-forget="${c.kind}:${c.id}" title="Listeden kaldır" aria-label="Kaldır">${icon('x')}</button>
+      ${c.up_next ? `<span class="flag new">${T('SIRADAKİ')}</span>` : ''}
+      <button class="x" data-forget="${c.kind}:${c.id}" title="${T('Listeden kaldır')}" aria-label="${T('Kaldır')}">${icon('x')}</button>
       <div class="play-glyph">${icon('play', 'fill')}</div>
-      <div class="shade"><strong>${esc(c.title)}</strong><span>${esc(c.sub || '')}${c.dur ? ` · ${fmtLeft(c.pos, c.dur)}` : ''}</span></div>
+      <div class="shade"><strong>${esc(c.title)}</strong><span>${esc(tx(c.sub || ''))}${c.dur ? ` · ${fmtLeft(c.pos, c.dur)}` : ''}</span></div>
       ${pct ? `<div class="pbar progress-line"><i style="width:${pct}%"></i></div>` : ''}
     </div></div>`;
 }
@@ -178,7 +178,7 @@ function collectionCard(c) {
   const stack = c.titles.filter(t => t.ph).slice(0, 3).map(t => `<img src="${img('m', t.id, 'poster', 154)}" alt="" loading="lazy">`).join('');
   return `<div class="card col" tabindex="0" role="button" data-open="${c.key}" aria-label="${esc(c.name)}">
     <div class="art">${artHTML(c)}<div class="stack">${stack}</div>
-      <div class="shade"><strong>${esc(c.name)}</strong><span>${c.titles.length} film${c.parts > c.titles.length ? ` · serinin ${c.parts} filminden` : ''}</span></div>
+      <div class="shade"><strong>${esc(c.name)}</strong><span>${T('{n} film', { n: c.titles.length })}${c.parts > c.titles.length ? ` · ${T('serinin {n} filminden', { n: c.parts })}` : ''}</span></div>
     </div></div>`;
 }
 
@@ -186,11 +186,11 @@ function row(title, items, { kind = 'poster', more = '' } = {}) {
   if (!items.length) return '';
   const body = items.map(x => kind === 'cont' ? continueCard(x) : kind === 'col' ? collectionCard(x) : posterCard(x)).join('');
   return `<section class="row">
-    <div class="row-head"><h2>${esc(title)}</h2>${more ? `<a class="more" href="${more}">Tümünü gör ${icon('right')}</a>` : ''}</div>
+    <div class="row-head"><h2>${esc(tx(title))}</h2>${more ? `<a class="more" href="${more}">${T('Tümünü gör')} ${icon('right')}</a>` : ''}</div>
     <div class="rail-wrap">
-      <button class="rail-btn prev" aria-label="Geri" hidden>${icon('left')}</button>
+      <button class="rail-btn prev" aria-label="${T('Geri')}" hidden>${icon('left')}</button>
       <div class="rail${kind !== 'poster' ? ' wide' : ''}">${body}</div>
-      <button class="rail-btn next" aria-label="İleri">${icon('right')}</button>
+      <button class="rail-btn next" aria-label="${T('İleri')}">${icon('right')}</button>
     </div></section>`;
 }
 
@@ -213,8 +213,8 @@ function metaLine(it, { runtime = true } = {}) {
   if (it.r) bits.push(`<span class="score">${icon('star')}${esc(it.r)}</span>`);
   if (it.y) bits.push(`<span>${esc(it.y)}</span>`);
   if (it.kind === 'm' && runtime && it.rt) bits.push(`<span>${fmtRuntime(it.rt)}</span>`);
-  if (it.kind === 's') bits.push(`<span>${it.seasons} sezon · ${it.eps} bölüm</span>`);
-  const g = genresOf(it).slice(0, 3).join(', ');
+  if (it.kind === 's') bits.push(`<span>${T('{n} sezon', { n: it.seasons })} · ${T('{n} bölüm', { n: it.eps })}</span>`);
+  const g = genresOf(it).slice(0, 3).map(tx).join(', ');
   if (g) bits.push(`<span>${esc(g)}</span>`);
   return bits.join('<i class="sep"></i>');
 }
@@ -227,20 +227,20 @@ function heroHTML(picks) {
   const src = it => it.online ? `${TMDB_IMG}w1280${it.ob}` : img(it.kind, it.kind === 'm' ? it.bdId : it.id, 'backdrop', 1600);
   const slides = picks.map((it, i) => `<div class="hero-slide${i ? '' : ' on'}"><img src="${src(it)}" alt="" ${i ? 'loading="lazy"' : 'fetchpriority="high"'}></div>`).join('');
   return `<section class="hero" id="hero">${slides}<div class="hero-content" id="hero-content"></div>
-    ${picks.length > 1 ? `<div class="hero-dots">${picks.map((_, i) => `<button data-hero="${i}" class="${i ? '' : 'on'}" aria-label="Öne çıkan ${i + 1}"></button>`).join('')}</div>` : ''}</section>`;
+    ${picks.length > 1 ? `<div class="hero-dots">${picks.map((_, i) => `<button data-hero="${i}" class="${i ? '' : 'on'}" aria-label="${T('Öne çıkan {n}', { n: i + 1 })}"></button>`).join('')}</div>` : ''}</section>`;
 }
 
 function heroContent(it) {
-  if (it.online) return `<div class="kicker"><b>H</b>Online · ${it.kind === 'os' ? 'Dizi' : 'Film'}</div>
+  if (it.online) return `<div class="kicker"><b>H</b>Online · ${T(it.kind === 'os' ? 'Dizi' : 'Film')}</div>
     <h1>${esc(it.t)}</h1>
     <div class="meta">${metaLine(it)}</div>
     <p class="plot">${esc(it.p)}</p>
     <div class="actions">
-      <button class="btn btn-play" ${it.kind === 'os' ? `data-open="${it.key}"` : `data-oplay="m:${it.tm}"`}>${icon('play', 'fill')}Oynat</button>
-      <button class="btn btn-ghost" data-open="${it.key}">${icon('info')}Daha Fazla Bilgi</button>
+      <button class="btn btn-play" ${it.kind === 'os' ? `data-open="${it.key}"` : `data-oplay="m:${it.tm}"`}>${icon('play', 'fill')}${T('Oynat')}</button>
+      <button class="btn btn-ghost" data-open="${it.key}">${icon('info')}${T('Daha Fazla Bilgi')}</button>
     </div>`;
   const col = it.c ? S.colById.get(String(it.c)) : null;
-  const kicker = it.kind === 's' ? 'Dizi' : col ? `Koleksiyon · ${col.name}` : isNew(it) ? 'Yeni Eklendi' : 'Öne Çıkan Film';
+  const kicker = it.kind === 's' ? T('Dizi') : col ? `${T('Koleksiyon')} · ${col.name}` : isNew(it) ? T('Yeni Eklendi') : T('Öne Çıkan Film');
   const prog = it.kind === 'm' ? movieProgress(it) : null;
   const resume = prog && !prog[2] && prog[0] > 30;
   return `<div class="kicker"><b>H</b>${esc(kicker)}</div>
@@ -248,8 +248,8 @@ function heroContent(it) {
     <div class="meta">${metaLine(it)}</div>
     <p class="plot">${esc(it.p)}</p>
     <div class="actions">
-      <button class="btn btn-play" data-${it.kind === 's' ? 'open' : 'play'}="${it.kind === 's' ? it.key : 'm:' + it.id}">${icon('play', 'fill')}${resume ? 'Devam Et' : 'Oynat'}</button>
-      <button class="btn btn-ghost" data-open="${it.key}">${icon('info')}Daha Fazla Bilgi</button>
+      <button class="btn btn-play" data-${it.kind === 's' ? 'open' : 'play'}="${it.kind === 's' ? it.key : 'm:' + it.id}">${icon('play', 'fill')}${T(resume ? 'Devam Et' : 'Oynat')}</button>
+      <button class="btn btn-ghost" data-open="${it.key}">${icon('info')}${T('Daha Fazla Bilgi')}</button>
     </div>`;
 }
 
@@ -321,10 +321,10 @@ function renderBrowse(kind) {
   const genres = [...genreCount.entries()].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1]).map(([g]) => g);
   const items = sortItems(st.genre ? base.filter(it => genresOf(it).includes(st.genre)) : base, st.sort);
   $('#view').innerHTML = `
-    <div class="page-head"><h1>${kind === 'movies' ? 'Filmler' : 'Diziler'}</h1><span class="count">${items.length} ${kind === 'movies' ? 'film' : 'dizi'}</span></div>
+    <div class="page-head"><h1>${T(kind === 'movies' ? 'Filmler' : 'Diziler')}</h1><span class="count">${T(kind === 'movies' ? '{n} film' : '{n} dizi', { n: items.length })}</span></div>
     <div class="toolbar">
-      <div class="chips"><button class="chip${st.genre ? '' : ' on'}" data-genre="">Tümü</button>${genres.map(g => `<button class="chip${st.genre === g ? ' on' : ''}" data-genre="${esc(g)}">${esc(g)}</button>`).join('')}</div>
-      <label class="select"><span class="sr">Sırala</span><select id="sort">${SORTS.map(([v, l]) => `<option value="${v}"${st.sort === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+      <div class="chips"><button class="chip${st.genre ? '' : ' on'}" data-genre="">${T('Tümü')}</button>${genres.map(g => `<button class="chip${st.genre === g ? ' on' : ''}" data-genre="${esc(g)}">${esc(tx(g))}</button>`).join('')}</div>
+      <label class="select"><span class="sr">${T('Sırala')}</span><select id="sort">${SORTS.map(([v, l]) => `<option value="${v}"${st.sort === v ? ' selected' : ''}>${T(l)}</option>`).join('')}</select></label>
     </div>
     <div class="grid" id="grid">${items.map(it => posterCard(it, { caption: true })).join('') || emptyState('Bu türde içerik yok', 'Başka bir tür seçmeyi deneyin.')}</div>`;
   $('.chips').onclick = e => {
@@ -339,13 +339,13 @@ function renderBrowse(kind) {
 }
 
 function emptyState(title, text, ic = 'popcorn') {
-  return `<div class="empty">${icon(ic)}<h3>${esc(title)}</h3><p>${esc(text)}</p></div>`;
+  return `<div class="empty">${icon(ic)}<h3>${esc(tx(title))}</h3><p>${esc(tx(text))}</p></div>`;
 }
 
 function renderCollections() {
   const cols = [...S.cols].sort((a, b) => collator.compare(a.name, b.name));
   $('#view').innerHTML = `
-    <div class="page-head"><h1>Koleksiyonlar</h1><span class="count">${cols.length} seri · ${cols.reduce((n, c) => n + c.titles.length, 0)} film</span></div>
+    <div class="page-head"><h1>${T('Koleksiyonlar')}</h1><span class="count">${T('{n} seri', { n: cols.length })} · ${T('{n} film', { n: cols.reduce((n, c) => n + c.titles.length, 0) })}</span></div>
     <div class="grid cols" style="padding-top:20px">${cols.map(collectionCard).join('') || emptyState('Henüz koleksiyon yok', 'Film bilgileri tamamlandıkça devam filmleri burada gruplanacak.')}</div>`;
 }
 
@@ -363,8 +363,8 @@ function renderKids() {
   let html = `<div class="kids"><div class="kids-sky" aria-hidden="true">${sky}</div>
     <header class="kids-hero">
       <h1 class="kids-title" aria-label="Kids Zone">${title}</h1>
-      <p>Çizgi filmler, animasyonlar ve aile filmleri burada! ${movies.length + series.length} macera seni bekliyor.</p>
-      ${movies.length ? '<button class="kids-surprise" data-action="kids-surprise">🎲 Sürpriz Film!</button>' : ''}
+      <p>${T('Çizgi filmler, animasyonlar ve aile filmleri burada! {n} macera seni bekliyor.', { n: movies.length + series.length })}</p>
+      ${movies.length ? `<button class="kids-surprise" data-action="kids-surprise">${T('🎲 Sürpriz Film!')}</button>` : ''}
     </header><div class="rows">`;
   html += row('🌟 En Sevilenler', [...movies].sort((a, b) => r(b) - r(a)).slice(0, 24));
   html += row('🎨 Animasyon Filmleri', shuffle(movies.filter(t => genresOf(t).includes('Animasyon')), daySeed));
@@ -399,7 +399,7 @@ function kidsSurprise() {
 function renderList() {
   const items = [...S.mylist].map(itemByKey).filter((x, i, a) => x && a.indexOf(x) === i);
   $('#view').innerHTML = `
-    <div class="page-head"><h1>Listem</h1><span class="count">${items.length} içerik</span></div>
+    <div class="page-head"><h1>${T('Listem')}</h1><span class="count">${T('{n} içerik', { n: items.length })}</span></div>
     <div class="grid" style="padding-top:20px">${items.map(it => posterCard(it, { caption: true })).join('') ||
       emptyState('Listeniz boş', 'Bir filmin ya da dizinin sayfasındaki + düğmesiyle buraya ekleyin.', 'bookmark')}</div>`;
 }
@@ -471,16 +471,16 @@ function detailHero(it, title, actions, metaHTML) {
 const CAN_DOWNLOAD = !/Web0S|webOS|NetCast|HomeflixTV|SmartTV|Tizen/i.test(navigator.userAgent);
 function downloadButton(ref, size) {
   if (!CAN_DOWNLOAD) return '';
-  return `<button class="round-btn" data-dl="${ref}" title="İndir${size ? ' · ' + fmtSize(size) : ''}" aria-label="İndir">${icon('download')}</button>`;
+  return `<button class="round-btn" data-dl="${ref}" title="${T('İndir')}${size ? ' · ' + fmtSize(size) : ''}" aria-label="${T('İndir')}">${icon('download')}</button>`;
 }
 // One download at a time per device: the server refuses a second one, so check first and say why.
 async function startDownload(ref) {
   const [kind, id] = ref.split(':');
   let st;
-  try { st = await api.get('/api/download/status'); } catch { return toast('Sunucuya ulaşılamadı.'); }
+  try { st = await api.get('/api/download/status'); } catch { return toast(T('Sunucuya ulaşılamadı.')); }
   if (st.mine) {
     const pct = st.mine.size ? Math.floor(st.mine.sent / st.mine.size * 100) : 0;
-    return toast(`${icon('download')} Bu cihazda zaten bir indirme sürüyor: <b>${esc(st.mine.name)}</b> (%${pct}). O bitince yenisini başlatabilirsiniz.`, 4500);
+    return toast(`${icon('download')} ${T('Bu cihazda zaten bir indirme sürüyor: <b>{name}</b> (%{pct}). O bitince yenisini başlatabilirsiniz.', { name: esc(st.mine.name), pct })}`, 4500);
   }
   const a = document.createElement('a');
   a.href = `/download/${kind}/${id}`;
@@ -488,12 +488,12 @@ async function startDownload(ref) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  toast(`${icon('download')} İndirme başladı. Ağı yormamak için hız sınırlıdır, bu biraz sürebilir.`, 4000);
+  toast(`${icon('download')} ${T('İndirme başladı. Ağı yormamak için hız sınırlıdır, bu biraz sürebilir.')}`, 4000);
 }
 
 function listButton(it) {
   const on = inList(it);
-  return `<button class="round-btn${on ? ' on' : ''}" data-list="${it.key}" title="${on ? 'Listemden çıkar' : 'Listeme ekle'}" aria-label="Listem">${icon(on ? 'check' : 'plus')}</button>`;
+  return `<button class="round-btn${on ? ' on' : ''}" data-list="${it.key}" title="${T(on ? 'Listemden çıkar' : 'Listeme ekle')}" aria-label="${T('Listem')}">${icon(on ? 'check' : 'plus')}</button>`;
 }
 
 function renderDetail(it) {
@@ -503,46 +503,46 @@ function renderDetail(it) {
     const prog = movieProgress(it);
     const resume = prog && !prog[2] && prog[0] > 30;
     const vid = resume ? prog[4] : it.id;
-    actions = `<button class="btn btn-play" data-play="m:${vid}">${icon('play', 'fill')}${resume ? 'Devam Et' : 'Oynat'}</button>
-      ${resume ? `<button class="btn btn-ghost" data-play="m:${vid}" data-from="0">${icon('refresh')}Baştan Başla</button>` : ''}${listButton(it)}${downloadButton('m:' + vid, (it.versions.find(v => v.id === vid) || {}).sz)}`;
+    actions = `<button class="btn btn-play" data-play="m:${vid}">${icon('play', 'fill')}${T(resume ? 'Devam Et' : 'Oynat')}</button>
+      ${resume ? `<button class="btn btn-ghost" data-play="m:${vid}" data-from="0">${icon('refresh')}${T('Baştan Başla')}</button>` : ''}${listButton(it)}${downloadButton('m:' + vid, (it.versions.find(v => v.id === vid) || {}).sz)}`;
     if (resume && prog[1]) resumeNote = `<div class="resume-note"><div class="progress-line"><i style="width:${clamp(prog[0] / prog[1] * 100, 2, 100)}%"></i></div>${fmtLeft(prog[0], prog[1])}</div>`;
   } else {
-    actions = `<button class="btn btn-play" id="series-play" data-play="">${icon('play', 'fill')}Oynat</button>${listButton(it)}`;
+    actions = `<button class="btn btn-play" id="series-play" data-play="">${icon('play', 'fill')}${T('Oynat')}</button>${listButton(it)}`;
   }
   const similar = [...S.titles, ...S.series].filter(x => x !== it && !(col && x.c === it.c))
     .map(x => ({ x, s: genresOf(x).filter(g => genresOf(it).includes(g)).length + (parseFloat(x.r) || 0) / 20 }))
     .filter(o => o.s >= 1).sort((a, b) => b.s - a.s).slice(0, 12).map(o => o.x);
   const facts = [];
-  if (it.ot && fold(it.ot) !== fold(it.t)) facts.push(`<div>Orijinal ad: <b>${esc(it.ot)}</b></div>`);
-  if (genresOf(it).length) facts.push(`<div>Türler: <b>${esc(genresOf(it).join(', '))}</b></div>`);
-  if (col) facts.push(`<div>Koleksiyon: <a data-open="${col.key}">${esc(col.name)}</a></div>`);
-  if (it.kind === 'm') facts.push(`<div>Kütüphaneye eklendi: <b>${new Date(it.add * 1000).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>`);
-  const versions = it.kind === 'm' && it.versions.length > 1 ? `<div class="section"><div class="section-head"><h3>Sürümler</h3></div><div class="versions">
-    ${it.versions.map((v, i) => `<div class="version-row"><button class="version" data-play="m:${v.id}" data-from="0">${icon('play', 'fill')}<span>${esc(v.t)}${i === 0 ? ' · varsayılan' : ''}</span><small>${v.sz ? fmtSize(v.sz) : ''}</small></button>${CAN_DOWNLOAD ? `<button class="version-dl icon-btn" data-dl="m:${v.id}" title="Bu sürümü indir" aria-label="Bu sürümü indir">${icon('download')}</button>` : ''}</div>`).join('')}</div></div>` : '';
+  if (it.ot && fold(it.ot) !== fold(it.t)) facts.push(`<div>${T('Orijinal ad')}: <b>${esc(it.ot)}</b></div>`);
+  if (genresOf(it).length) facts.push(`<div>${T('Türler')}: <b>${esc(genresOf(it).map(tx).join(', '))}</b></div>`);
+  if (col) facts.push(`<div>${T('Koleksiyon')}: <a data-open="${col.key}">${esc(col.name)}</a></div>`);
+  if (it.kind === 'm') facts.push(`<div>${T('Kütüphaneye eklendi')}: <b>${new Date(it.add * 1000).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>`);
+  const versions = it.kind === 'm' && it.versions.length > 1 ? `<div class="section"><div class="section-head"><h3>${T('Sürümler')}</h3></div><div class="versions">
+    ${it.versions.map((v, i) => `<div class="version-row"><button class="version" data-play="m:${v.id}" data-from="0">${icon('play', 'fill')}<span>${esc(v.t)}${i === 0 ? ' · ' + T('varsayılan') : ''}</span><small>${v.sz ? fmtSize(v.sz) : ''}</small></button>${CAN_DOWNLOAD ? `<button class="version-dl icon-btn" data-dl="m:${v.id}" title="${T('Bu sürümü indir')}" aria-label="${T('Bu sürümü indir')}">${icon('download')}</button>` : ''}</div>`).join('')}</div></div>` : '';
   $('#detail-sheet').innerHTML = `
-    <button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>
+    <button class="close" data-action="back" aria-label="${T('Kapat')}">${icon('x')}</button>
     ${detailHero(it, it.t, actions, metaLine(it))}
     <div class="d-body">
-      <div class="d-grid"><div><p class="plot">${esc(it.p || 'Bu içerik için açıklama bulunamadı.')}</p>${resumeNote}</div><div class="facts">${facts.join('')}</div></div>
-      ${it.kind === 's' ? '<div class="section" id="episodes"><div class="section-head"><h3>Bölümler</h3></div><div class="eps"><div class="spin" style="margin:20px auto"></div></div></div>' : ''}
-      ${col ? `<div class="section"><div class="section-head"><h3>${esc(col.name)} Koleksiyonu</h3><a class="more" style="opacity:1;transform:none;color:var(--muted);font-weight:600;font-size:14px;cursor:pointer" data-open="${col.key}">Koleksiyonu aç</a></div>
+      <div class="d-grid"><div><p class="plot">${esc(it.p || T('Bu içerik için açıklama bulunamadı.'))}</p>${resumeNote}</div><div class="facts">${facts.join('')}</div></div>
+      ${it.kind === 's' ? `<div class="section" id="episodes"><div class="section-head"><h3>${T('Bölümler')}</h3></div><div class="eps"><div class="spin" style="margin:20px auto"></div></div></div>` : ''}
+      ${col ? `<div class="section"><div class="section-head"><h3>${esc(col.name)}</h3><a class="more" style="opacity:1;transform:none;color:var(--muted);font-weight:600;font-size:14px;cursor:pointer" data-open="${col.key}">${T('Koleksiyonu aç')}</a></div>
         <div class="grid">${col.titles.map(t => posterCard(t, { caption: true, current: t === it })).join('')}</div></div>` : ''}
       ${versions}
-      ${similar.length ? `<div class="section"><div class="section-head"><h3>Benzer İçerikler</h3></div><div class="grid">${similar.map(x => posterCard(x, { caption: true })).join('')}</div></div>` : ''}
+      ${similar.length ? `<div class="section"><div class="section-head"><h3>${T('Benzer İçerikler')}</h3></div><div class="grid">${similar.map(x => posterCard(x, { caption: true })).join('')}</div></div>` : ''}
     </div>`;
 }
 
 function renderCollectionDetail(c) {
   const next = c.titles.find(t => { const p = movieProgress(t); return !p || !p[2]; }) || c.titles[0];
   const years = c.titles.map(t => parseInt(t.y)).filter(Boolean);
-  const meta = [`<span>${c.titles.length} film</span>`, years.length ? `<span>${Math.min(...years)}–${Math.max(...years)}</span>` : '',
-    c.parts > c.titles.length ? `<span>Seride ${c.parts} film var</span>` : ''].filter(Boolean).join('<i class="sep"></i>');
+  const meta = [`<span>${T('{n} film', { n: c.titles.length })}</span>`, years.length ? `<span>${Math.min(...years)}–${Math.max(...years)}</span>` : '',
+    c.parts > c.titles.length ? `<span>${T('Seride {n} film var', { n: c.parts })}</span>` : ''].filter(Boolean).join('<i class="sep"></i>');
   $('#detail-sheet').innerHTML = `
-    <button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>
-    ${detailHero(c, c.name, `<button class="btn btn-play" data-play="m:${next.id}">${icon('play', 'fill')}${next === c.titles[0] ? 'Seriye Başla' : 'Sıradakini İzle'}</button>`, meta)}
+    <button class="close" data-action="back" aria-label="${T('Kapat')}">${icon('x')}</button>
+    ${detailHero(c, c.name, `<button class="btn btn-play" data-play="m:${next.id}">${icon('play', 'fill')}${T(next === c.titles[0] ? 'Seriye Başla' : 'Sıradakini İzle')}</button>`, meta)}
     <div class="d-body">
       ${c.ov ? `<p class="plot" style="font-size:16px;color:#e4e4e7;margin:14px 0 0;max-width:760px;line-height:1.6">${esc(c.ov)}</p>` : ''}
-      <div class="section"><div class="section-head"><h3>Filmler</h3><span style="color:var(--dim);font-size:14px">Çıkış sırasına göre</span></div>
+      <div class="section"><div class="section-head"><h3>${T('Filmler')}</h3><span style="color:var(--dim);font-size:14px">${T('Çıkış sırasına göre')}</span></div>
       <div class="grid">${c.titles.map(t => posterCard(t, { caption: true })).join('')}</div></div>
     </div>`;
 }
@@ -565,19 +565,19 @@ async function loadEpisodes(s, season, tries = 0) {
   if (playBtn) {
     const resume = target.pos > 30 && !target.fin;
     playBtn.dataset.play = 'e:' + target.id;
-    playBtn.innerHTML = `${icon('play', 'fill')}${resume ? 'Devam Et' : last ? 'Oynat' : 'İzlemeye Başla'} · S${target.season}:B${target.n}`;
+    playBtn.innerHTML = `${icon('play', 'fill')}${T(resume ? 'Devam Et' : last ? 'Oynat' : 'İzlemeye Başla')} · ${epCode(target.season, target.n)}`;
   }
-  const seasonSel = data.seasons.length > 1 ? `<label class="select"><select id="season-sel">${data.seasons.map(x => `<option value="${x.n}"${x.n === cur ? ' selected' : ''}>Sezon ${x.n}</option>`).join('')}</select></label>` : `<span style="color:var(--dim)">Sezon ${cur}</span>`;
+  const seasonSel = data.seasons.length > 1 ? `<label class="select"><select id="season-sel">${data.seasons.map(x => `<option value="${x.n}"${x.n === cur ? ' selected' : ''}>${T('Sezon {n}', { n: x.n })}</option>`).join('')}</select></label>` : `<span style="color:var(--dim)">${T('Sezon {n}', { n: cur })}</span>`;
   const eps = data.seasons.find(x => x.n === cur)?.eps || [];
-  box.innerHTML = `<div class="section-head"><h3>Bölümler</h3>${seasonSel}</div><div class="eps">${eps.map(e => {
+  box.innerHTML = `<div class="section-head"><h3>${T('Bölümler')}</h3>${seasonSel}</div><div class="eps">${eps.map(e => {
     const pct = e.dur && !e.fin ? clamp(e.pos / e.dur * 100, 2, 100) : e.fin ? 100 : 0;
     const thumb = e.still ? `/img/still/${e.id}` : s.bd ? img('s', s.id, 'backdrop', 400) : s.ph ? img('s', s.id, 'poster', 342) : '';
     return `<div class="ep${target.id === e.id ? ' now' : ''}${CAN_DOWNLOAD ? ' has-dl' : ''}" tabindex="0" role="button" data-play="e:${e.id}">
       <div class="num">${e.n}</div>
       <div class="thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy" onload="this.classList.add('ok')">` : ''}<div class="play-glyph"><span>${icon('play', 'fill')}</span></div>
         ${pct ? `<div class="pbar progress-line"><i style="width:${pct}%"></i></div>` : ''}</div>
-      <div><h4><span>${esc(e.name || `${e.n}. Bölüm`)}</span><small>${e.fin ? `<span class="done">${icon('check')}İzlendi</span>` : e.rt ? e.rt + ' dk' : ''}</small></h4>
-        <p>${esc(e.ov || e.file)}</p></div>${CAN_DOWNLOAD ? `<button class="ep-dl icon-btn" data-dl="e:${e.id}" title="Bölümü indir" aria-label="Bölümü indir">${icon('download')}</button>` : ''}</div>`;
+      <div><h4><span>${esc(e.name || T('{n}. Bölüm', { n: e.n }))}</span><small>${e.fin ? `<span class="done">${icon('check')}${T('İzlendi')}</span>` : e.rt ? T('{m} dk', { m: e.rt }) : ''}</small></h4>
+        <p>${esc(e.ov || e.file)}</p></div>${CAN_DOWNLOAD ? `<button class="ep-dl icon-btn" data-dl="e:${e.id}" title="${T('Bölümü indir')}" aria-label="${T('Bölümü indir')}">${icon('download')}</button>` : ''}</div>`;
   }).join('')}</div>`;
   const sel = $('#season-sel');
   if (sel) sel.onchange = () => loadEpisodes(s, +sel.value);
@@ -591,8 +591,8 @@ async function toggleList(key, btn) {
   const keys = it.kind === 'm' ? (on ? [it.key] : it.versions.map(v => 'm:' + v.id)) : [it.key];
   for (const k of keys) { await api.post('/api/mylist', { key: k, on }); on ? S.mylist.add(k) : S.mylist.delete(k); }
   if (it.online && on) S.online.set(it.key, it);
-  if (btn) { btn.classList.toggle('on', on); btn.innerHTML = icon(on ? 'check' : 'plus'); btn.title = on ? 'Listemden çıkar' : 'Listeme ekle'; }
-  toast(on ? `${icon('check')} <b>${esc(it.t)}</b> listene eklendi` : `<b>${esc(it.t)}</b> listenden çıkarıldı`);
+  if (btn) { btn.classList.toggle('on', on); btn.innerHTML = icon(on ? 'check' : 'plus'); btn.title = T(on ? 'Listemden çıkar' : 'Listeme ekle'); }
+  toast(on ? `${icon('check')} ${T('<b>{t}</b> listene eklendi', { t: esc(it.t) })}` : T('<b>{t}</b> listenden çıkarıldı', { t: esc(it.t) }));
   if (S.view === 'list' || S.view === 'home') softRender();
 }
 
@@ -611,8 +611,8 @@ function runSearch(q) {
   const box = $('#search-results');
   const terms = fold(q).split(/\s+/).filter(Boolean);
   if (!terms.length) {
-    box.innerHTML = `<div class="search-hint">Türlere göz atın</div><div class="chips">${S.genres.slice(0, 24).map(({ g, n }) => `<button class="chip" data-goto="#movies/${encodeURIComponent(g)}">${esc(g)} <span style="color:var(--dim);margin-left:4px">${n}</span></button>`).join('')}</div>
-      ${S.cols.length ? `<div class="search-hint">Koleksiyonlar</div><div class="grid cols" style="padding-top:0">${S.cols.slice(0, 6).map(collectionCard).join('')}</div>` : ''}`;
+    box.innerHTML = `<div class="search-hint">${T('Türlere göz atın')}</div><div class="chips">${S.genres.slice(0, 24).map(({ g, n }) => `<button class="chip" data-goto="#movies/${encodeURIComponent(g)}">${esc(tx(g))} <span style="color:var(--dim);margin-left:4px">${n}</span></button>`).join('')}</div>
+      ${S.cols.length ? `<div class="search-hint">${T('Koleksiyonlar')}</div><div class="grid cols" style="padding-top:0">${S.cols.slice(0, 6).map(collectionCard).join('')}</div>` : ''}`;
     return;
   }
   const score = it => {
@@ -626,7 +626,7 @@ function runSearch(q) {
   };
   const hits = [...S.titles, ...S.series].map(it => [it, score(it)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).map(x => x[0]);
   const cols = S.cols.filter(c => terms.every(w => fold(c.name).includes(w)));
-  box.innerHTML = `<div class="search-hint">${hits.length ? `Kütüphanede ${hits.length} sonuç` : 'Kütüphanede sonuç yok'}</div>
+  box.innerHTML = `<div class="search-hint">${hits.length ? T('Kütüphanede {n} sonuç', { n: hits.length }) : T('Kütüphanede sonuç yok')}</div>
     ${cols.length ? `<div class="grid cols" style="padding-bottom:20px">${cols.map(collectionCard).join('')}</div>` : ''}
     ${hits.length ? `<div class="grid">${hits.slice(0, 120).map(it => posterCard(it, { caption: true })).join('')}</div>` : ''}
     <div id="online-hits"></div>`;
@@ -643,55 +643,69 @@ async function openSettings() {
   const s = await api.get('/api/settings');
   sheet.innerHTML = `
     <header class="st-head">
-      <h2>Ayarlar</h2>
+      <h2>${T('Ayarlar')}</h2>
       <div class="st-stats">
-        <div><b>${s.stats.movies}</b>Film</div><div><b>${s.stats.series}</b>Dizi</div>
-        <div><b>${s.stats.episodes}</b>Bölüm</div><div><b>${S.cols.length}</b>Koleksiyon</div>
+        <div><b>${s.stats.movies}</b>${T2('Film', 'Movies')}</div><div><b>${s.stats.series}</b>${T2('Dizi', 'Series')}</div>
+        <div><b>${s.stats.episodes}</b>${T2('Bölüm', 'Episodes')}</div><div><b>${S.cols.length}</b>${T2('Koleksiyon', 'Collections')}</div>
       </div>
-      <button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>
+      <button class="close" data-action="back" aria-label="${T('Kapat')}">${icon('x')}</button>
     </header>
     <div class="st-grid">
       <div class="st-col">
-        <section class="st-card"><h3>Kütüphane</h3>
+        <section class="st-card"><h3>${T('Kütüphane')}</h3>
           <div class="form">${s.local ? `
-            <div class="field"><label for="conf-movie">Film klasörü</label><input id="conf-movie" value="${esc(s.movie_dir)}"></div>
-            <div class="field"><label for="conf-series">Dizi klasörü</label><input id="conf-series" value="${esc(s.series_dir)}"></div>
-            <div class="field"><label for="conf-key">OMDb API anahtarı</label><input id="conf-key" value="${esc(s.omdb_api_key)}"></div>` : ''}
+            <div class="field"><label for="conf-movie">${T('Film klasörü')}</label><input id="conf-movie" value="${esc(s.movie_dir)}"></div>
+            <div class="field"><label for="conf-series">${T('Dizi klasörü')}</label><input id="conf-series" value="${esc(s.series_dir)}"></div>
+            <div class="field"><label for="conf-key">${T('OMDb API anahtarı')}</label><input id="conf-key" value="${esc(s.omdb_api_key)}"></div>` : ''}
             <div class="actions">${s.local ? `
-              <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}Kaydet ve Tara</button>` : ''}
-              <button class="btn btn-ghost btn-sm" data-action="rescan">${icon('refresh')}Yeniden Tara</button>
-              <button class="btn btn-ghost btn-sm" data-action="enrich">Eksik Bilgileri Tekrar Ara</button>
+              <button class="btn btn-accent btn-sm" data-action="save-settings">${icon('check')}${T('Kaydet ve Tara')}</button>` : ''}
+              <button class="btn btn-ghost btn-sm" data-action="rescan">${icon('refresh')}${T('Yeniden Tara')}</button>
+              <button class="btn btn-ghost btn-sm" data-action="enrich">${T('Eksik Bilgileri Tekrar Ara')}</button>
             </div>
           </div></section>
         ${s.local ? downloadLimitSection(s.download_mbps) : ''}
-        <section class="st-card"><h3>Diğer cihazlardan bağlan</h3>
-          <div class="urls">${(s.urls.length ? s.urls : [location.origin]).map(u => `<div class="url"><span>${esc(u)}</span><button class="icon-btn" data-copy="${esc(u)}" title="Kopyala">${icon('copy')}</button></div>`).join('')}</div>
-          <p class="st-hint">Telefon, tablet veya TV tarayıcısından bu adrese girin. Aynı Wi-Fi ağında olmanız yeterli.</p></section>
+        <section class="st-card"><h3>${T('Diğer cihazlardan bağlan')}</h3>
+          <div class="urls">${(s.urls.length ? s.urls : [location.origin]).map(u => `<div class="url"><span>${esc(u)}</span><button class="icon-btn" data-copy="${esc(u)}" title="${T('Kopyala')}">${icon('copy')}</button></div>`).join('')}</div>
+          <p class="st-hint">${T('Telefon, tablet veya TV tarayıcısından bu adrese girin. Aynı Wi-Fi ağında olmanız yeterli.')}</p></section>
       </div>
       <div class="st-col">
+        ${langSection()}
         ${randSection()}
-        <section class="st-card st-keys"><h3>Klavye kısayolları</h3>
+        <section class="st-card st-keys"><h3>${T('Klavye kısayolları')}</h3>
           <div class="keys">
-            <div><kbd>/</kbd>Ara</div><div><kbd>Boşluk</kbd>Oynat / Duraklat</div><div><kbd>← →</kbd>10 sn geri / ileri</div>
-            <div><kbd>↑ ↓</kbd>Ses</div><div><kbd>F</kbd>Tam ekran</div><div><kbd>M</kbd>Sessiz</div>
-            <div><kbd>C</kbd>Ses ve altyazı</div><div><kbd>N</kbd>Sonraki bölüm</div><div><kbd>Esc</kbd>Geri</div>
+            <div><kbd>/</kbd>${T('Ara')}</div><div><kbd>${T('Boşluk')}</kbd>${T('Oynat / Duraklat')}</div><div><kbd>← →</kbd>${T('10 sn geri / ileri')}</div>
+            <div><kbd>↑ ↓</kbd>${T('Ses')}</div><div><kbd>F</kbd>${T('Tam ekran')}</div><div><kbd>M</kbd>${T('Sessiz')}</div>
+            <div><kbd>C</kbd>${T('Ses ve altyazı')}</div><div><kbd>N</kbd>${T('Sonraki bölüm')}</div><div><kbd>Esc</kbd>${T('Geri')}</div>
           </div></section>
       </div>
     </div>
-    <p class="st-foot">Homeflix 2 · Film bilgileri TMDb, Emby ve OMDb'den alınır.</p>`;
+    <p class="st-foot">${T("Homeflix 2 · Film bilgileri TMDb, Emby ve OMDb'den alınır.")}</p>`;
+}
+
+// Interface language, kept per device like the random movie filters. The page reloads to redraw everything in it.
+const LANGS = [['tr', 'Türkçe'], ['en', 'English']];
+function langSection() {
+  return `<section class="st-card" id="lang"><h3>Dil · Language</h3>
+    <div class="chips wrap" role="group" aria-label="Dil · Language">${LANGS.map(([v, l]) => `<button class="chip${LANG === v ? ' on' : ''}" data-lang="${v}" aria-pressed="${LANG === v}">${l}</button>`).join('')}</div>
+    <p class="st-hint">${T('Menüler ve düğmeler bu dilde görünür. Film adları ve özetleri TMDb’den geldiği gibi kalır.')}</p></section>`;
+}
+function setLang(v) {
+  if (v === LANG) return;
+  store.set('lang', v);
+  location.reload();
 }
 
 // Speed limit shared by all downloads together, so people watching are never slowed down. Set from this computer only.
 const DL_LIMITS = [10, 20, 40, 80, 200];
 function downloadLimitSection(cur) {
-  return `<section class="st-card" id="dl-limit"><h3>İndirme hız sınırı</h3>
-    <div class="chips wrap" role="group" aria-label="İndirme hız sınırı">${DL_LIMITS.map(v => `<button class="chip${v === cur ? ' on' : ''}" data-dl-limit="${v}" aria-pressed="${v === cur}">${v} Mbit/sn</button>`).join('')}</div>
-    <p class="st-hint">Bütün indirmeler birlikte bu hızı geçmez. Her cihaz aynı anda yalnızca bir dosya indirebilir.</p></section>`;
+  return `<section class="st-card" id="dl-limit"><h3>${T('İndirme hız sınırı')}</h3>
+    <div class="chips wrap" role="group" aria-label="${T('İndirme hız sınırı')}">${DL_LIMITS.map(v => `<button class="chip${v === cur ? ' on' : ''}" data-dl-limit="${v}" aria-pressed="${v === cur}">${T('{v} Mbit/sn', { v })}</button>`).join('')}</div>
+    <p class="st-hint">${T('Bütün indirmeler birlikte bu hızı geçmez. Her cihaz aynı anda yalnızca bir dosya indirebilir.')}</p></section>`;
 }
 async function setDownloadLimit(v) {
-  try { await api.post('/api/settings', { download_mbps: v }); } catch { return toast('Kaydedilemedi'); }
+  try { await api.post('/api/settings', { download_mbps: v }); } catch { return toast(T('Kaydedilemedi')); }
   $$('[data-dl-limit]').forEach(b => { const on = +b.dataset.dlLimit === v; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
-  toast(`İndirme sınırı ${v} Mbit/sn`);
+  toast(T('İndirme sınırı {v} Mbit/sn', { v }));
 }
 
 // Random movie filters are kept per device, like volume and subtitle style. Several genres match any of them.
@@ -712,13 +726,13 @@ function randPool() {
 function randSection() {
   const { genres, min } = randPrefs();
   const chip = (attr, on, label) => `<button class="chip${on ? ' on' : ''}" ${attr} aria-pressed="${on}">${label}</button>`;
-  return `<section class="st-card" id="rand-prefs"><h3>Rastgele film<span class="rand-count" id="rand-count">${randPool().length} film</span></h3>
+  return `<section class="st-card" id="rand-prefs"><h3>${T('Rastgele film')}<span class="rand-count" id="rand-count">${T('{n} film', { n: randPool().length })}</span></h3>
     <div class="form">
-      <div class="field"><span class="lbl">Türler</span><div class="chips wrap" role="group" aria-label="Türler">
-        ${chip('data-rand="genre" data-v=""', !genres.length, 'Tümü')}${movieGenres().map(([g, n]) => chip(`data-rand="genre" data-v="${esc(g)}"`, genres.includes(g), `${esc(g)} <span class="n">${n}</span>`)).join('')}
+      <div class="field"><span class="lbl">${T('Türler')}</span><div class="chips wrap" role="group" aria-label="${T('Türler')}">
+        ${chip('data-rand="genre" data-v=""', !genres.length, T('Tümü'))}${movieGenres().map(([g, n]) => chip(`data-rand="genre" data-v="${esc(g)}"`, genres.includes(g), `${esc(tx(g))} <span class="n">${n}</span>`)).join('')}
       </div></div>
-      <div class="field"><span class="lbl">En düşük puan</span><div class="chips wrap" role="group" aria-label="En düşük puan">
-        ${RAND_MIN.map(([v, label]) => chip(`data-rand="min" data-v="${v}"`, v === min, label)).join('')}
+      <div class="field"><span class="lbl">${T('En düşük puan')}</span><div class="chips wrap" role="group" aria-label="${T('En düşük puan')}">
+        ${RAND_MIN.map(([v, label]) => chip(`data-rand="min" data-v="${v}"`, v === min, T(label))).join('')}
       </div></div>
     </div></section>`;
 }
@@ -734,16 +748,16 @@ function randAction(el) {
     b.classList.toggle('on', on);
     b.setAttribute('aria-pressed', on);
   });
-  $('#rand-count').textContent = `${randPool().length} film`;
+  $('#rand-count').textContent = T('{n} film', { n: randPool().length });
 }
 
 async function settingsAction(a) {
   if (a === 'save-settings') {
     await api.post('/api/settings', { movie_dir: $('#conf-movie').value, series_dir: $('#conf-series').value, omdb_api_key: $('#conf-key').value });
     await api.post('/api/scan');
-    toast('Ayarlar kaydedildi, tarama başladı');
-  } else if (a === 'rescan') { await api.post('/api/rescan'); toast('Diskteki dosyalar taranıyor…'); }
-  else if (a === 'enrich') { await api.post('/api/enrich'); toast('Eksik bilgiler yeniden aranıyor'); }
+    toast(T('Ayarlar kaydedildi, tarama başladı'));
+  } else if (a === 'rescan') { await api.post('/api/rescan'); toast(T('Diskteki dosyalar taranıyor…')); }
+  else if (a === 'enrich') { await api.post('/api/enrich'); toast(T('Eksik bilgiler yeniden aranıyor')); }
   pollStatus(true);
 }
 
@@ -755,7 +769,7 @@ async function pollStatus(now) {
     try {
       const st = await api.get('/api/status');
       $('#status').classList.toggle('on', st.busy);
-      $('#status-text').textContent = st.tasks.join(' · ');
+      $('#status-text').textContent = st.tasks.map(tx).join(' · ');
       if ((st.version !== S.version && !st.busy) || (wasBusy && !st.busy)) await refresh();
       else if (st.version !== S.version) await Promise.all([loadLibrary(), loadUser()]);
       wasBusy = st.busy;
@@ -807,19 +821,19 @@ async function play(kind, id, opts = {}) {
   $('#p-title').textContent = opts.title || '';
   $('#p-sub').textContent = '';
   let info;
-  try { info = await api.get(`/api/media/${kind}/${id}`); } catch { toast('Video dosyası bulunamadı. Disk bağlı mı?'); return back(); }
+  try { info = await api.get(`/api/media/${kind}/${id}`); } catch { toast(T('Video dosyası bulunamadı. Disk bağlı mı?')); return back(); }
   if (P.kind !== kind || P.id !== id) return;
   P.info = info;
   P.next = info.next || null;
   $('#p-title').textContent = info.title;
-  $('#p-sub').textContent = info.sub || '';
+  $('#p-sub').textContent = tx(info.sub || '');
   $('#p-next').hidden = !P.next;
   loadCredits(playingItem());
   document.title = `${info.title} · Homeflix`;
   const start = opts.from !== undefined ? +opts.from : (info.resume > 30 ? info.resume : 0);
   P.mode = info.direct ? 'direct' : streamMode();
   loadSource(start);
-  if (start > 30) toast(`Kaldığın yerden devam ediliyor · ${fmtTime(start)}`);
+  if (start > 30) toast(T('Kaldığın yerden devam ediliyor · {time}', { time: fmtTime(start) }));
   autoSubtitles();
   mediaSession();
   showUI();
@@ -868,7 +882,7 @@ function playbackFailed(t, code) {
     return setTimeout(() => { if (P.open && seq === P.loadSeq) loadSource(t); }, 700 * P.retries);
   }
   $('#player').classList.remove('loading');
-  toast('Video oynatılamadı. Dosya bozuk ya da desteklenmiyor olabilir.', 4000);
+  toast(T('Video oynatılamadı. Dosya bozuk ya da desteklenmiyor olabilir.'), 4000);
 }
 
 function seek(t) {
@@ -1014,8 +1028,8 @@ function showUpNext() {
       <svg class="ring" viewBox="0 0 64 64"><circle cx="32" cy="32" r="28" fill="rgba(0,0,0,.55)" stroke="rgba(255,255,255,.25)" stroke-width="4"/>
       <circle id="upring" cx="32" cy="32" r="28" fill="none" stroke="#fff" stroke-width="4" stroke-dasharray="176" stroke-dashoffset="0" transform="rotate(-90 32 32)" style="transition:stroke-dashoffset 1s linear"/>
       <text id="upnum" x="32" y="39" text-anchor="middle" fill="#fff" font-size="20" font-weight="700" font-family="sans-serif">${left}</text></svg></div>
-    <div class="body"><small>Sonraki bölüm</small><strong>${esc(n.label)}${n.name ? ' · ' + esc(n.name) : ''}</strong>
-      <div class="actions"><button class="btn btn-play" data-p="next">${icon('play', 'fill')}Şimdi Oynat</button><button class="btn btn-ghost" data-p="dismiss-next">Kapat</button></div></div>`;
+    <div class="body"><small>${T('Sonraki bölüm')}</small><strong>${esc(tx(n.label))}${n.name ? ' · ' + esc(n.name) : ''}</strong>
+      <div class="actions"><button class="btn btn-play" data-p="next">${icon('play', 'fill')}${T('Şimdi Oynat')}</button><button class="btn btn-ghost" data-p="dismiss-next">${T('Kapat')}</button></div></div>`;
   box.classList.add('open');
   const step = () => {
     left--;
@@ -1032,7 +1046,7 @@ function dismissUpNext() { clearTimeout(P.upnextT); P.upnextDismissed = true; $(
 
 /* ---------------- pause screen: what's playing, who's in it, what to watch next */
 const CREDITS = new Map();
-const regionName = (() => { try { const d = new Intl.DisplayNames(['tr'], { type: 'region' }); return c => d.of(c) || c; } catch { return c => c; } })();
+const regionName = (() => { try { const d = new Intl.DisplayNames([LANG], { type: 'region' }); return c => d.of(c) || c; } catch { return c => c; } })();
 const playingItem = () => !P.info ? null : P.kind === 'm' ? S.movieToTitle.get(P.id) : S.byKey.get('s:' + P.info.sid);
 
 function loadCredits(it) {
@@ -1057,28 +1071,28 @@ function similarTitles(it, rec = [], n = 14) {
 
 function pauseHTML(it, cr) {
   const ep = P.kind === 'e' ? P.info.sub : '';
-  const date = cr.date ? new Date(cr.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+  const date = cr.date ? new Date(cr.date).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const facts = [
     [it.kind === 's' ? 'Yaratıcı' : 'Yönetmen', (cr.directors || []).join(', ')],
     ['Senaryo', (cr.writers || []).join(', ')],
     ['Ülke', (cr.countries || []).map(regionName).join(', ')],
     [it.kind === 's' ? 'İlk yayın' : 'Vizyon', date],
     ['Orijinal ad', it.ot && fold(it.ot) !== fold(it.t) ? it.ot : ''],
-  ].filter(f => f[1]).map(([k, v]) => `<div><span>${k}</span><b>${esc(v)}</b></div>`).join('');
+  ].filter(f => f[1]).map(([k, v]) => `<div><span>${T(k)}</span><b>${esc(v)}</b></div>`).join('');
   const cast = (cr.cast || []).map(p => `<div class="pp-person">
       <div class="pp-face">${icon('user')}${p.p ? `<img src="/img/person${esc(p.p)}" alt="" loading="lazy" onload="this.classList.add('ok')" onerror="this.remove()">` : ''}</div>
       <b>${esc(p.n)}</b>${p.c ? `<small>${esc(p.c)}</small>` : ''}</div>`).join('');
-  const castBlock = cast ? `<div class="pp-sec"><h4>Oyuncular</h4><div class="pp-row">${cast}</div></div>`
-    : it.tm && !cr.done ? '<div class="pp-sec"><h4>Oyuncular</h4><div class="spin"></div></div>' : '';
+  const castBlock = cast ? `<div class="pp-sec"><h4>${T('Oyuncular')}</h4><div class="pp-row">${cast}</div></div>`
+    : it.tm && !cr.done ? `<div class="pp-sec"><h4>${T('Oyuncular')}</h4><div class="spin"></div></div>` : '';
   const similar = similarTitles(it, cr.rec).map(x => `<button class="pp-card" data-p="similar" data-key="${x.key}" title="${esc(x.t)}">
       <div class="art">${artHTML(x, 185)}</div><b>${esc(x.t)}</b><small>${esc(x.y || '')}${x.r ? ` · ★ ${esc(x.r)}` : ''}</small></button>`).join('');
   return `<div class="pp-inner">
     <div class="pp-main">
       ${it.ph ? `<img class="pp-poster" src="${img(it.kind, it.id, 'poster', 342)}" alt="">` : ''}
       <div class="pp-info">
-        <small class="pp-kicker">İzliyorsun</small>
+        <small class="pp-kicker">${T('İzliyorsun')}</small>
         <h2>${esc(it.t)}</h2>
-        ${ep ? `<div class="pp-ep">${esc(ep)}</div>` : ''}
+        ${ep ? `<div class="pp-ep">${esc(tx(ep))}</div>` : ''}
         <div class="meta">${metaLine(it)}</div>
         ${cr.tagline ? `<p class="pp-tagline">${esc(cr.tagline)}</p>` : ''}
         ${it.p ? `<p class="pp-plot">${esc(it.p)}</p>` : ''}
@@ -1086,7 +1100,7 @@ function pauseHTML(it, cr) {
       </div>
     </div>
     ${castBlock}
-    ${similar ? `<div class="pp-sec"><h4>${it.kind === 's' ? 'Benzer Diziler' : 'Benzer Filmler'}</h4><div class="pp-row">${similar}</div></div>` : ''}
+    ${similar ? `<div class="pp-sec"><h4>${T(it.kind === 's' ? 'Benzer Diziler' : 'Benzer Filmler')}</h4><div class="pp-row">${similar}</div></div>` : ''}
   </div>`;
 }
 
@@ -1141,10 +1155,10 @@ function parseSubs(text) {
 }
 function setSubs(text, label, source) {
   const cues = parseSubs(text || '');
-  if (!cues.length) { toast('Altyazı dosyası okunamadı'); return false; }
+  if (!cues.length) { toast(T('Altyazı dosyası okunamadı')); return false; }
   P.subs = { cues, label, source };
   P.lastSubHTML = null;
-  toast(`${icon('cc')} Altyazı: <b>${esc(label)}</b>`);
+  toast(`${icon('cc')} ${T('Altyazı')}: <b>${esc(tx(label))}</b>`);
   if ($('#p-panel').classList.contains('open')) renderPanel();
   return true;
 }
@@ -1162,13 +1176,13 @@ function renderSubtitle(t) {
   if (html !== P.lastSubHTML) { el.innerHTML = html; P.lastSubHTML = html; }
 }
 async function loadServerSub(url, label, source) {
-  const slow = source.startsWith('emb') ? setTimeout(() => toast('Gömülü altyazı hazırlanıyor, bu biraz sürebilir…'), 900) : 0;
+  const slow = source.startsWith('emb') ? setTimeout(() => toast(T('Gömülü altyazı hazırlanıyor, bu biraz sürebilir…')), 900) : 0;
   try {
     const r = await fetch(url);
     clearTimeout(slow);
     if (!r.ok) throw 0;
     setSubs(await r.text(), label, source);
-  } catch { clearTimeout(slow); toast('Altyazı yüklenemedi'); }
+  } catch { clearTimeout(slow); toast(T('Altyazı yüklenemedi')); }
 }
 function autoSubtitles() {
   const info = P.info;
@@ -1203,32 +1217,33 @@ function renderPanel(view = 'main') {
   const pn = $('#p-panel'), info = P.info;
   if (!info) return;
   if (view === 'online') {
-    pn.innerHTML = `<button class="back" data-p="panel-main">${icon('left')}Çevrimiçi altyazı</button><div class="results" id="sub-results"><div style="padding:30px;display:grid;place-items:center"><div class="spin"></div></div></div>`;
+    pn.innerHTML = `<button class="back" data-p="panel-main">${icon('left')}${T('Çevrimiçi altyazı')}</button><div class="results" id="sub-results"><div style="padding:30px;display:grid;place-items:center"><div class="spin"></div></div></div>`;
     api.get(`/api/subs/search/${P.kind}/${P.id}`).then(list => {
       const box = $('#sub-results');
       if (!box) return;
       box.innerHTML = list.length ? list.map(s => `<button class="opt" data-p="dl-sub" data-fid="${s.file_id}" data-label="${esc(s.release || s.lang)}">
-        <span><b style="color:#fff">${s.lang === 'tr' ? 'Türkçe' : 'İngilizce'}</b> · ${esc(s.release || '')}</span><small>${s.match === 'HASH' ? 'tam eşleşme · ' : ''}${s.downloads} ⬇</small></button>`).join('')
-        : '<p style="padding:20px;color:var(--muted)">Bu video için altyazı bulunamadı.</p>';
-    }).catch(() => { const box = $('#sub-results'); if (box) box.innerHTML = '<p style="padding:20px;color:var(--muted)">Arama başarısız. İnternet bağlantınızı kontrol edin.</p>'; });
+        <span><b style="color:#fff">${T(s.lang === 'tr' ? 'Türkçe' : 'İngilizce')}</b> · ${esc(s.release || '')}</span><small>${s.match === 'HASH' ? T('tam eşleşme') + ' · ' : ''}${s.downloads} ⬇</small></button>`).join('')
+        : `<p style="padding:20px;color:var(--muted)">${T('Bu video için altyazı bulunamadı.')}</p>`;
+    }).catch(() => { const box = $('#sub-results'); if (box) box.innerHTML = `<p style="padding:20px;color:var(--muted)">${T('Arama başarısız. İnternet bağlantınızı kontrol edin.')}</p>`; });
     return;
   }
   const src = P.subs?.source || 'off';
-  const opt = (on, attrs, label, small = '') => `<button class="opt${on ? ' on' : ''}" ${attrs}>${icon('check', 'chk')}<span>${esc(label)}</span>${small ? `<small>${esc(small)}</small>` : ''}</button>`;
+  const opt = (on, attrs, label, small = '') => `<button class="opt${on ? ' on' : ''}" ${attrs}>${icon('check', 'chk')}<span>${esc(tx(label))}</span>${small ? `<small>${esc(tx(small))}</small>` : ''}</button>`;
   const audio = (info.audio.length ? info.audio : [{ index: 0, label: 'Varsayılan' }]).map(a => opt(P.audio === a.index, `data-p="audio" data-i="${a.index}"`, a.label, a.codec ? a.codec.toUpperCase() : '')).join('');
   let subs = opt(src === 'off', 'data-p="sub-off"', 'Kapalı');
   subs += info.local_subs.map(s => opt(src === 'local:' + s.index, `data-p="sub" data-url="/sub/${P.kind}/${P.id}/local/${s.index}" data-src="local:${s.index}" data-label="${esc(s.label)}"`, s.label, 'dosya')).join('');
   if (info.auto_sub) subs += opt(src === 'auto', `data-p="sub" data-url="/sub/${P.kind}/${P.id}/auto" data-src="auto" data-label="Türkçe (internet)"`, 'Türkçe (internet)', 'otomatik');
   subs += info.subs.map(s => opt(src === 'emb:' + s.index, `data-p="sub" data-url="/sub/${P.kind}/${P.id}/embedded/${s.index}" data-src="emb:${s.index}" data-label="${esc(s.label)}"`, s.label, 'gömülü')).join('');
   if (P.subs && (src === 'file' || src === 'online')) subs += opt(true, '', P.subs.label, src === 'file' ? 'yüklendi' : 'indirildi');
-  subs += `<button class="opt" data-p="panel-online">${icon('globe')}<span>Çevrimiçi ara…</span></button>`;
-  subs += `<button class="opt" data-p="sub-file">${icon('upload')}<span>Dosyadan yükle…</span></button>`;
+  subs += `<button class="opt" data-p="panel-online">${icon('globe')}<span>${T('Çevrimiçi ara…')}</span></button>`;
+  subs += `<button class="opt" data-p="sub-file">${icon('upload')}<span>${T('Dosyadan yükle…')}</span></button>`;
   const size = store.get('subSize', 'm');
-  pn.innerHTML = `<div class="cols"><div class="col"><h5>Ses</h5>${audio}</div><div class="col"><h5>Altyazı</h5>${subs}</div></div>
+  const dec = n => LANG === 'en' ? n : n.replace('.', ',');
+  pn.innerHTML = `<div class="cols"><div class="col"><h5>${T2('Ses', 'Audio')}</h5>${audio}</div><div class="col"><h5>${T('Altyazı')}</h5>${subs}</div></div>
     <div class="foot">
-      <span>Boyut</span><div class="seg">${[['s', 'Küçük'], ['m', 'Orta'], ['l', 'Büyük']].map(([k, l]) => `<button class="${size === k ? 'on' : ''}" data-p="sub-size" data-v="${k}">${l}</button>`).join('')}</div>
-      <span>Senkron</span><div class="seg"><button data-p="sub-delay" data-v="-0.5">−0,5</button><button class="on" style="min-width:58px">${P.subDelay > 0 ? '+' : ''}${P.subDelay.toFixed(1).replace('.', ',')} sn</button><button data-p="sub-delay" data-v="0.5">+0,5</button></div>
-      <div class="seg"><button class="${store.get('subBox', false) ? 'on' : ''}" data-p="sub-box">Arka plan</button></div>
+      <span>${T('Boyut')}</span><div class="seg">${[['s', 'Küçük'], ['m', 'Orta'], ['l', 'Büyük']].map(([k, l]) => `<button class="${size === k ? 'on' : ''}" data-p="sub-size" data-v="${k}">${T(l)}</button>`).join('')}</div>
+      <span>${T('Senkron')}</span><div class="seg"><button data-p="sub-delay" data-v="-0.5">${dec('−0.5')}</button><button class="on" style="min-width:58px">${T('{v} sn', { v: (P.subDelay > 0 ? '+' : '') + dec(P.subDelay.toFixed(1)) })}</button><button data-p="sub-delay" data-v="0.5">${dec('+0.5')}</button></div>
+      <div class="seg"><button class="${store.get('subBox', false) ? 'on' : ''}" data-p="sub-box">${T('Arka plan')}</button></div>
     </div>`;
 }
 function applySubStyle() {
@@ -1254,7 +1269,7 @@ async function playerAction(a, el) {
       P.speed = speeds[(speeds.indexOf(P.speed) + 1) % speeds.length];
       v.playbackRate = P.speed;
       $('#p-speedtag').textContent = P.speed === 1 ? '' : P.speed + 'x';
-      return toast(`Oynatma hızı ${String(P.speed).replace('.', ',')}x`, 1400);
+      return toast(T('Oynatma hızı {v}x', { v: LANG === 'en' ? P.speed : String(P.speed).replace('.', ',') }), 1400);
     }
     case 'panel': {
       const pn = $('#p-panel');
@@ -1276,9 +1291,9 @@ async function playerAction(a, el) {
     case 'sub': store.set('subsOff', false); await loadServerSub(el.dataset.url, el.dataset.label, el.dataset.src); return renderPanel();
     case 'sub-file': return $('#sub-file').click();
     case 'dl-sub': {
-      el.innerHTML = '<div class="spin"></div><span>İndiriliyor…</span>';
+      el.innerHTML = `<div class="spin"></div><span>${T('İndiriliyor…')}</span>`;
       try { const vtt = await api.post('/api/subs/download', { file_id: +el.dataset.fid }); if (setSubs(vtt, el.dataset.label, 'online')) renderPanel(); }
-      catch { toast('Altyazı indirilemedi (günlük limit dolmuş olabilir)'); renderPanel('online'); }
+      catch { toast(T('Altyazı indirilemedi (günlük limit dolmuş olabilir)')); renderPanel('online'); }
       return;
     }
     case 'sub-size': store.set('subSize', el.dataset.v); applySubStyle(); return renderPanel();
@@ -1398,8 +1413,8 @@ function playerKeys(e) {
     ' ': togglePlay, k: togglePlay,
     arrowleft: () => { seekHint(-1); seek(pTime() - 10); }, j: () => { seekHint(-1); seek(pTime() - 10); },
     arrowright: () => { seekHint(1); seek(pTime() + 10); }, l: () => { seekHint(1); seek(pTime() + 10); },
-    arrowup: () => { v.muted = false; v.volume = clamp(v.volume + 0.1, 0, 1); updateVolIcon(); toast(`Ses %${Math.round(v.volume * 100)}`, 900); },
-    arrowdown: () => { v.volume = clamp(v.volume - 0.1, 0, 1); updateVolIcon(); toast(`Ses %${Math.round(v.volume * 100)}`, 900); },
+    arrowup: () => { v.muted = false; v.volume = clamp(v.volume + 0.1, 0, 1); updateVolIcon(); toast(T('Ses %{n}', { n: Math.round(v.volume * 100) }), 900); },
+    arrowdown: () => { v.volume = clamp(v.volume - 0.1, 0, 1); updateVolIcon(); toast(T('Ses %{n}', { n: Math.round(v.volume * 100) }), 900); },
     f: toggleFullscreen, m: () => { v.muted = !v.muted; updateVolIcon(); },
     c: () => playerAction('panel'), n: () => P.next && playNext(),
     escape: () => {
@@ -1439,10 +1454,10 @@ function onlineContinueCard(c) {
   const pct = c.dur ? clamp(c.pos / c.dur * 100, 2, 100) : 0;
   return `<div class="card land" tabindex="0" role="button" data-oplay="${spec}" aria-label="${esc(c.title)}">
     <div class="art">${src ? `<img src="${src}" alt="" loading="lazy" onload="this.classList.add('ok')" onerror="this.remove()">` : `<div class="ph" style="--h:${hue(c.title)}">${esc(c.title)}</div>`}
-      ${c.up_next ? '<span class="flag new">SIRADAKİ</span>' : '<span class="flag">ONLINE</span>'}
-      <button class="x" data-forget="${esc(c.pkey)}" title="Listeden kaldır" aria-label="Kaldır">${icon('x')}</button>
+      ${c.up_next ? `<span class="flag new">${T('SIRADAKİ')}</span>` : '<span class="flag">ONLINE</span>'}
+      <button class="x" data-forget="${esc(c.pkey)}" title="${T('Listeden kaldır')}" aria-label="${T('Kaldır')}">${icon('x')}</button>
       <div class="play-glyph">${icon('play', 'fill')}</div>
-      <div class="shade"><strong>${esc(c.title)}</strong><span>${esc(c.sub || '')}${c.dur ? `${c.sub ? ' · ' : ''}${fmtLeft(c.pos, c.dur)}` : ''}</span></div>
+      <div class="shade"><strong>${esc(c.title)}</strong><span>${esc(tx(c.sub || ''))}${c.dur ? `${c.sub ? ' · ' : ''}${fmtLeft(c.pos, c.dur)}` : ''}</span></div>
       ${pct ? `<div class="pbar progress-line"><i style="width:${pct}%"></i></div>` : ''}
     </div></div>`;
 }
@@ -1450,11 +1465,11 @@ function onlineContinueCard(c) {
 /* ---------------- the Online tab */
 async function renderOnline() {
   const view = $('#view');
-  const head = `<div class="page-head"><h1>Online</h1><span class="count">Kütüphanende olmayan film ve diziler</span></div>`;
+  const head = `<div class="page-head"><h1>Online</h1><span class="count">${T('Kütüphanende olmayan film ve diziler')}</span></div>`;
   if (!OL.home) {
     if (OL.error) {
       view.innerHTML = head + `<div class="grid">${emptyState('Online katalog yüklenemedi', 'İnternet bağlantısını ve TMDb anahtarını kontrol edin.', 'globe')}</div>
-        <div style="text-align:center;margin-top:-60px"><button class="btn btn-ghost" data-action="online-retry">${icon('refresh')}Tekrar Dene</button></div>`;
+        <div style="text-align:center;margin-top:-60px"><button class="btn btn-ghost" data-action="online-retry">${icon('refresh')}${T('Tekrar Dene')}</button></div>`;
       return;
     }
     view.innerHTML = head + `<div style="height:50vh;display:grid;place-items:center"><div class="spin" style="width:40px;height:40px;border-width:3px"></div></div>`;
@@ -1474,7 +1489,7 @@ async function renderOnline() {
   const cont = S.cont.filter(c => c.kind === 'om' || c.kind === 'oe');
   const list = [...S.mylist].filter(k => /^o[ms]:/.test(k)).map(itemByKey).filter(Boolean);
   let html = heroHTML(picks) + `<div class="rows">
-    <div class="o-search"><label class="o-search-box">${icon('search')}<input id="online-q" type="search" placeholder="Online'da film veya dizi ara…" autocomplete="off" spellcheck="false" value="${esc(OL.q)}"></label></div>
+    <div class="o-search"><label class="o-search-box">${icon('search')}<input id="online-q" type="search" placeholder="${T("Online'da film veya dizi ara…")}" autocomplete="off" spellcheck="false" value="${esc(OL.q)}"></label></div>
     <div id="online-results"></div><div id="online-rows">`;
   html += row('İzlemeye Devam Et', cont, { kind: 'cont' });
   html += row('Listem', list);
@@ -1500,7 +1515,7 @@ async function onlinePageSearch(q) {
   try { list = await api.get('/api/online/search?q=' + encodeURIComponent(OL.q)); } catch { list = null; }
   if (OL.q !== q.trim() || !$('#online-results')) return;
   res.innerHTML = !list ? `<div class="grid">${emptyState('Arama yapılamadı', 'İnternet bağlantısını kontrol edin.', 'globe')}</div>`
-    : `<div class="grid">${list.map(d => posterCard(onlineItem(d), { caption: true })).join('') || emptyState(`“${OL.q}” için sonuç yok`, 'Farklı bir yazım ya da orijinal adıyla aramayı deneyin.', 'search')}</div>`;
+    : `<div class="grid">${list.map(d => posterCard(onlineItem(d), { caption: true })).join('') || emptyState(T('“{q}” için sonuç yok', { q: OL.q }), 'Farklı bir yazım ya da orijinal adıyla aramayı deneyin.', 'search')}</div>`;
 }
 
 // The search overlay also lists online matches under the library's.
@@ -1512,7 +1527,7 @@ function searchOnline(q) {
     try { list = await api.get('/api/online/search?q=' + encodeURIComponent(q.trim())); } catch { return; }
     const box = $('#online-hits');
     if (!box || $('#search-input').value !== q || !list.length) return;
-    box.innerHTML = `<div class="search-hint">Online · ${list.length} sonuç</div><div class="grid">${list.slice(0, 40).map(d => posterCard(onlineItem(d), { caption: true })).join('')}</div>`;
+    box.innerHTML = `<div class="search-hint">Online · ${T('{n} sonuç', { n: list.length })}</div><div class="grid">${list.slice(0, 40).map(d => posterCard(onlineItem(d), { caption: true })).join('')}</div>`;
   }, 400);
 }
 
@@ -1536,10 +1551,10 @@ async function openOnlineDetail(key) {
   $('#detail-scroll').scrollTop = 0;
   const base = itemByKey(key);
   if (base) renderOnlineDetail(base, null);
-  else $('#detail-sheet').innerHTML = `<button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button><div style="padding:120px;display:grid;place-items:center"><div class="spin"></div></div>`;
+  else $('#detail-sheet').innerHTML = `<button class="close" data-action="back" aria-label="${T('Kapat')}">${icon('x')}</button><div style="padding:120px;display:grid;place-items:center"><div class="spin"></div></div>`;
   let data;
   try { data = await onlineTitle(kind, tm); } catch {
-    if (detailKey === key && !base) $('#detail-sheet').innerHTML = `<button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>${emptyState('Bilgiler alınamadı', 'İnternet bağlantısını kontrol edin.', 'globe')}`;
+    if (detailKey === key && !base) $('#detail-sheet').innerHTML = `<button class="close" data-action="back" aria-label="${T('Kapat')}">${icon('x')}</button>${emptyState('Bilgiler alınamadı', 'İnternet bağlantısını kontrol edin.', 'globe')}`;
     return;
   }
   if (detailKey !== key) return;
@@ -1552,34 +1567,34 @@ function renderOnlineDetail(it, data) {
   const tm = it.tm;
   const local = data?.local || (localOf(it)?.key ?? '');
   let actions, resumeNote = '';
-  const localBtn = local ? `<button class="btn btn-ghost" data-open="${local}">${icon('film')}Kütüphanede Aç</button>` : '';
+  const localBtn = local ? `<button class="btn btn-ghost" data-open="${local}">${icon('film')}${T('Kütüphanede Aç')}</button>` : '';
   if (it.kind === 'om') {
     const prog = data?.progress;
     const resume = prog && !prog[2] && prog[0] > 30;
-    actions = `<button class="btn btn-play" data-oplay="m:${tm}">${icon('play', 'fill')}${resume ? 'Devam Et' : 'Oynat'}</button>
-      ${resume ? `<button class="btn btn-ghost" data-oplay="m:${tm}" data-from="0">${icon('refresh')}Baştan Başla</button>` : ''}${listButton(it)}${localBtn}`;
+    actions = `<button class="btn btn-play" data-oplay="m:${tm}">${icon('play', 'fill')}${T(resume ? 'Devam Et' : 'Oynat')}</button>
+      ${resume ? `<button class="btn btn-ghost" data-oplay="m:${tm}" data-from="0">${icon('refresh')}${T('Baştan Başla')}</button>` : ''}${listButton(it)}${localBtn}`;
     if (resume && prog[1]) resumeNote = `<div class="resume-note"><div class="progress-line"><i style="width:${clamp(prog[0] / prog[1] * 100, 2, 100)}%"></i></div>${fmtLeft(prog[0], prog[1])}</div>`;
   } else {
-    actions = `<button class="btn btn-play" id="series-play" data-oplay="">${icon('play', 'fill')}Oynat</button>${listButton(it)}${localBtn}`;
+    actions = `<button class="btn btn-play" id="series-play" data-oplay="">${icon('play', 'fill')}${T('Oynat')}</button>${listButton(it)}${localBtn}`;
   }
   const extra = [];
   if (it.kind === 'om' && it.rt) extra.push(`<span>${fmtRuntime(it.rt)}</span>`);
-  if (it.kind === 'os' && it.seasons?.length) extra.push(`<span>${it.seasons.length} sezon</span>`);
+  if (it.kind === 'os' && it.seasons?.length) extra.push(`<span>${T('{n} sezon', { n: it.seasons.length })}</span>`);
   extra.push('<span class="badge">Online</span>');
   const meta = [metaLine(it), ...extra].filter(Boolean).join('<i class="sep"></i>');
   const facts = [];
-  if (it.ot && fold(it.ot) !== fold(it.t)) facts.push(`<div>Orijinal ad: <b>${esc(it.ot)}</b></div>`);
-  if (genresOf(it).length) facts.push(`<div>Türler: <b>${esc(genresOf(it).join(', '))}</b></div>`);
-  if (data?.date) facts.push(`<div>${it.kind === 'os' ? 'İlk yayın' : 'Vizyon'}: <b>${new Date(data.date).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>`);
-  facts.push('<div>Kaynak: <b>frameXTV (internet)</b></div>');
+  if (it.ot && fold(it.ot) !== fold(it.t)) facts.push(`<div>${T('Orijinal ad')}: <b>${esc(it.ot)}</b></div>`);
+  if (genresOf(it).length) facts.push(`<div>${T('Türler')}: <b>${esc(genresOf(it).map(tx).join(', '))}</b></div>`);
+  if (data?.date) facts.push(`<div>${T(it.kind === 'os' ? 'İlk yayın' : 'Vizyon')}: <b>${new Date(data.date).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>`);
+  facts.push(`<div>${T('Kaynak')}: <b>frameXTV (internet)</b></div>`);
   const rec = (data?.rec || []).map(onlineItem);
   $('#detail-sheet').innerHTML = `
-    <button class="close" data-action="back" aria-label="Kapat">${icon('x')}</button>
+    <button class="close" data-action="back" aria-label="${T('Kapat')}">${icon('x')}</button>
     ${detailHero(it, it.t, actions, meta)}
     <div class="d-body">
-      <div class="d-grid"><div>${data?.tagline ? `<p class="pp-tagline" style="margin:14px 0 0">${esc(data.tagline)}</p>` : ''}<p class="plot">${esc(it.p || 'Bu içerik için açıklama bulunamadı.')}</p>${resumeNote}</div><div class="facts">${facts.join('')}</div></div>
-      ${it.kind === 'os' ? `<div class="section" id="episodes"><div class="section-head"><h3>Bölümler</h3></div><div class="eps">${data ? '<div class="spin" style="margin:20px auto"></div>' : ''}</div></div>` : ''}
-      ${rec.length ? `<div class="section"><div class="section-head"><h3>Benzer İçerikler</h3></div><div class="grid">${rec.map(x => posterCard(x, { caption: true })).join('')}</div></div>` : ''}
+      <div class="d-grid"><div>${data?.tagline ? `<p class="pp-tagline" style="margin:14px 0 0">${esc(data.tagline)}</p>` : ''}<p class="plot">${esc(it.p || T('Bu içerik için açıklama bulunamadı.'))}</p>${resumeNote}</div><div class="facts">${facts.join('')}</div></div>
+      ${it.kind === 'os' ? `<div class="section" id="episodes"><div class="section-head"><h3>${T('Bölümler')}</h3></div><div class="eps">${data ? '<div class="spin" style="margin:20px auto"></div>' : ''}</div></div>` : ''}
+      ${rec.length ? `<div class="section"><div class="section-head"><h3>${T('Benzer İçerikler')}</h3></div><div class="grid">${rec.map(x => posterCard(x, { caption: true })).join('')}</div></div>` : ''}
     </div>`;
 }
 
@@ -1598,16 +1613,16 @@ async function loadOnlineSeason(it, data, season) {
   const box = $('#episodes');
   if (!box) return;
   const seasons = data.seasons || [];
-  if (!seasons.length) { box.innerHTML = `<div class="section-head"><h3>Bölümler</h3></div>` + emptyState('Bölüm bilgisi yok', ''); return; }
+  if (!seasons.length) { box.innerHTML = `<div class="section-head"><h3>${T('Bölümler')}</h3></div>` + emptyState('Bölüm bilgisi yok', ''); return; }
   const target = onlineSeriesTarget(data);
   const cur = season ?? target.s;
   const playBtn = $('#series-play');
   if (playBtn) {
     playBtn.dataset.oplay = `s:${it.tm}:${target.s}:${target.e}`;
-    playBtn.innerHTML = `${icon('play', 'fill')}${target.resume ? 'Devam Et' : target.started ? 'Oynat' : 'İzlemeye Başla'} · S${target.s}:B${target.e}`;
+    playBtn.innerHTML = `${icon('play', 'fill')}${T(target.resume ? 'Devam Et' : target.started ? 'Oynat' : 'İzlemeye Başla')} · ${epCode(target.s, target.e)}`;
   }
-  const seasonSel = seasons.length > 1 ? `<label class="select"><select id="season-sel">${seasons.map(([n]) => `<option value="${n}"${n === cur ? ' selected' : ''}>Sezon ${n}</option>`).join('')}</select></label>` : `<span style="color:var(--dim)">Sezon ${cur}</span>`;
-  const head = `<div class="section-head"><h3>Bölümler</h3>${seasonSel}</div>`;
+  const seasonSel = seasons.length > 1 ? `<label class="select"><select id="season-sel">${seasons.map(([n]) => `<option value="${n}"${n === cur ? ' selected' : ''}>${T('Sezon {n}', { n })}</option>`).join('')}</select></label>` : `<span style="color:var(--dim)">${T('Sezon {n}', { n: cur })}</span>`;
+  const head = `<div class="section-head"><h3>${T('Bölümler')}</h3>${seasonSel}</div>`;
   const wire = () => { const sel = $('#season-sel'); if (sel) sel.onchange = () => loadOnlineSeason(it, data, +sel.value); };
   box.innerHTML = head + '<div class="eps"><div class="spin" style="margin:20px auto"></div></div>';
   wire();
@@ -1627,7 +1642,7 @@ async function loadOnlineSeason(it, data, season) {
       <div class="num">${e.n}</div>
       <div class="thumb">${thumb ? `<img src="${thumb}" alt="" loading="lazy" onload="this.classList.add('ok')">` : ''}<div class="play-glyph"><span>${icon('play', 'fill')}</span></div>
         ${pct ? `<div class="pbar progress-line"><i style="width:${pct}%"></i></div>` : ''}</div>
-      <div><h4><span>${esc(e.name || `${e.n}. Bölüm`)}</span><small>${soon ? `Yayın: ${new Date(e.air).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })}` : fin ? `<span class="done">${icon('check')}İzlendi</span>` : e.rt ? e.rt + ' dk' : ''}</small></h4>
+      <div><h4><span>${esc(e.name || T('{n}. Bölüm', { n: e.n }))}</span><small>${soon ? `${T('Yayın')}: ${new Date(e.air).toLocaleDateString(LOCALE, { day: 'numeric', month: 'long' })}` : fin ? `<span class="done">${icon('check')}${T('İzlendi')}</span>` : e.rt ? T('{m} dk', { m: e.rt }) : ''}</small></h4>
         <p>${esc(e.ov)}</p></div></div>`;
   }).join('')}</div>`);
   wire();
@@ -1643,11 +1658,11 @@ async function playOnline(spec, opts = {}) {
   const kind = k === 'm' ? 'm' : 's', tm = +tmS;
   let info = OL.details.get(`${kind}:${tm}`);
   if (!info) {
-    try { info = await onlineTitle(kind, tm); } catch { return toast('İçerik bilgisi alınamadı. İnternet bağlantısını kontrol edin.'); }
+    try { info = await onlineTitle(kind, tm); } catch { return toast(T('İçerik bilgisi alınamadı. İnternet bağlantısını kontrol edin.')); }
   }
   let s = +sS || 0, e = +eS || 0;
   if (kind === 's' && !s) {
-    if (!info.seasons?.length) return toast('Bu dizinin bölüm bilgisi yok.');
+    if (!info.seasons?.length) return toast(T('Bu dizinin bölüm bilgisi yok.'));
     ({ s, e } = onlineSeriesTarget(info));
   }
   const prog = kind === 'm' ? info.progress : info.progress?.[`${s}:${e}`];
@@ -1661,7 +1676,7 @@ async function playOnline(spec, opts = {}) {
   }
   clearTimeout(OP.nextT);
   Object.assign(OP, { kind, tm, s, e, info, t: start, d: 0, lastAdvance: 0, lastSave: Date.now(), ended: false, guessPlaying: true });
-  const sub = kind === 's' ? `S${s}:B${e}` : (info.y || '');
+  const sub = kind === 's' ? epCode(s, e) : (info.y || '');
   $('#o-title').textContent = info.t;
   $('#o-sub').textContent = sub;
   $('#o-next').hidden = !(kind === 's' && nextOnlineEpisode(info.seasons, s, e));
@@ -1671,7 +1686,7 @@ async function playOnline(spec, opts = {}) {
   params.set('title', kind === 's' ? `${info.t} · ${sub}` : info.t);
   if (info.ob) params.set('poster', `https://image.tmdb.org/t/p/w1280${info.ob}`);
   oFrame().src = `${S.embed}/${tm}${kind === 's' ? `/${s}/${e}` : ''}?${params}`;
-  if (start > 30) toast(`Kaldığın yerden devam ediliyor · ${fmtTime(start)}`);
+  if (start > 30) toast(T('Kaldığın yerden devam ediliyor · {time}', { time: fmtTime(start) }));
   try { document.activeElement?.blur(); } catch {}
 }
 
@@ -1708,7 +1723,7 @@ function onlineEnded() {
   saveOnline(false, true);
   const nxt = OP.kind === 's' && nextOnlineEpisode(OP.info.seasons, OP.s, OP.e);
   if (!nxt) return;
-  toast(`${icon('play', 'fill')} Sonraki bölüm başlıyor · S${nxt[0]}:B${nxt[1]}`, 4000);
+  toast(`${icon('play', 'fill')} ${T('Sonraki bölüm başlıyor · {code}', { code: epCode(nxt[0], nxt[1]) })}`, 4000);
   OP.nextT = setTimeout(() => { if (OP.open) playOnline(`s:${OP.tm}:${nxt[0]}:${nxt[1]}`, { from: 0 }); }, 5000);
 }
 
@@ -1792,7 +1807,7 @@ window.addEventListener('pagehide', () => { if (OP.open) saveOnline(true); });
 // use hls.js (loaded on first use), and fall back to the native player when a broadcaster blocks hls.js (CORS).
 const LV = { data: null, loading: false, error: false, cat: '', q: '', open: false, cur: null, prev: null, pcat: '',
   list: false, hl: null, hls: null, seq: 0, uiT: 0, osdT: 0, listT: 0, numBuf: '', numT: 0, failT: 0, pre: new Set() };
-const LIVE_CAT = id => LV.data?.cats.find(c => c.id === id)?.n || '';
+const LIVE_CAT = id => tx(LV.data?.cats.find(c => c.id === id)?.n || '');
 const lVideo = () => $('#l-video');
 const PORTRAIT = () => window.matchMedia('(max-width: 760px) and (orientation: portrait)').matches;
 
@@ -1818,17 +1833,17 @@ function liveFilter(cat, q = '') {
 function liveCard(ch) {
   const watching = LV.open && LV.cur?.id === ch.id;
   return `<button class="lv-card" data-live="${esc(ch.id)}"><span class="lv-no">${ch.no}</span>
-    <span class="lv-name">${esc(ch.n)}</span><span class="lv-meta">${esc(LIVE_CAT(ch.cat))}${ch.tr ? ' · Türkiye' : ''}</span>
-    ${liveLogo(ch)}<span class="lv-badges"><span class="lv-pill">${watching ? 'İZLENİYOR' : 'CANLI'}</span><span class="lv-q">${esc(ch.q)}</span></span></button>`;
+    <span class="lv-name">${esc(ch.n)}</span><span class="lv-meta">${esc(LIVE_CAT(ch.cat))}${ch.tr ? ' · ' + T('Türkiye') : ''}</span>
+    ${liveLogo(ch)}<span class="lv-badges"><span class="lv-pill">${T(watching ? 'İZLENİYOR' : 'CANLI')}</span><span class="lv-q">${esc(ch.q)}</span></span></button>`;
 }
 
 async function renderLive() {
   const view = $('#view');
-  const head = n => `<div class="page-head"><h1>Canlı TV</h1><span class="count">${n}</span></div>`;
+  const head = n => `<div class="page-head"><h1>${T('Canlı TV')}</h1><span class="count">${n}</span></div>`;
   if (!LV.data) {
     if (LV.error) {
       view.innerHTML = head('') + `<div class="grid">${emptyState('Kanal listesi alınamadı', 'Homeflix sunucusuna ulaşılamıyor.', 'live')}</div>
-        <div style="text-align:center;margin-top:-60px"><button class="btn btn-ghost" data-action="live-retry">${icon('refresh')}Tekrar Dene</button></div>`;
+        <div style="text-align:center;margin-top:-60px"><button class="btn btn-ghost" data-action="live-retry">${icon('refresh')}${T('Tekrar Dene')}</button></div>`;
       return;
     }
     view.innerHTML = head('') + `<div style="height:50vh;display:grid;place-items:center"><div class="spin" style="width:40px;height:40px;border-width:3px"></div></div>`;
@@ -1840,13 +1855,13 @@ async function renderLive() {
   const items = liveFilter(LV.cat, LV.q);
   const recent = !LV.cat && !LV.q ? liveRecent().slice(0, 6) : [];
   const count = c => all.filter(x => x.cat === c).length;
-  view.innerHTML = head(`<span class="lv-dot"></span>${all.length} kanal`) + `
+  view.innerHTML = head(`<span class="lv-dot"></span>${T('{n} kanal', { n: all.length })}`) + `
     <div class="lv-tools">
-      <div class="chips" id="lv-chips"><button class="chip${LV.cat ? '' : ' on'}" data-lcat="">Tümü</button>${LV.data.cats.filter(c => count(c.id))
-        .map(c => `<button class="chip${LV.cat === c.id ? ' on' : ''}" data-lcat="${c.id}">${esc(c.n)}<span class="n">${count(c.id)}</span></button>`).join('')}</div>
-      <label class="o-search-box">${icon('search')}<input id="live-q" type="search" placeholder="Kanal ara…" autocomplete="off" spellcheck="false" value="${esc(LV.q)}"></label>
+      <div class="chips" id="lv-chips"><button class="chip${LV.cat ? '' : ' on'}" data-lcat="">${T('Tümü')}</button>${LV.data.cats.filter(c => count(c.id))
+        .map(c => `<button class="chip${LV.cat === c.id ? ' on' : ''}" data-lcat="${c.id}">${esc(tx(c.n))}<span class="n">${count(c.id)}</span></button>`).join('')}</div>
+      <label class="o-search-box">${icon('search')}<input id="live-q" type="search" placeholder="${T('Kanal ara…')}" autocomplete="off" spellcheck="false" value="${esc(LV.q)}"></label>
     </div>
-    ${recent.length ? `<h2 class="lv-sec">Son İzlediklerin</h2><div class="lv-grid recent">${recent.map(liveCard).join('')}</div><h2 class="lv-sec">Tüm Kanallar</h2>` : ''}
+    ${recent.length ? `<h2 class="lv-sec">${T('Son İzlediklerin')}</h2><div class="lv-grid recent">${recent.map(liveCard).join('')}</div><h2 class="lv-sec">${T('Tüm Kanallar')}</h2>` : ''}
     <div class="lv-grid" id="lv-grid">${items.map(liveCard).join('') || emptyState('Kanal bulunamadı', 'Başka bir kategori ya da arama deneyin.', 'live')}</div>`;
   const inp = $('#live-q');
   inp.addEventListener('input', () => {
@@ -1859,13 +1874,13 @@ async function renderLive() {
 function liveRows() { return liveFilter(LV.pcat); }
 
 function renderLiveList() {
-  const cats = [{ id: '', n: 'Tümü' }, ...LV.data.cats.filter(c => LV.data.channels.some(x => x.cat === c.id))];
-  $('#l-chips').innerHTML = cats.map(c => `<button class="chip${LV.pcat === c.id ? ' on' : ''}" data-lpcat="${c.id}">${esc(c.n)}</button>`).join('');
+  const cats = [{ id: '', n: T('Tümü') }, ...LV.data.cats.filter(c => LV.data.channels.some(x => x.cat === c.id))];
+  $('#l-chips').innerHTML = cats.map(c => `<button class="chip${LV.pcat === c.id ? ' on' : ''}" data-lpcat="${c.id}">${esc(tx(c.n))}</button>`).join('');
   const rows = liveRows();
   if (!rows.includes(LV.hl)) LV.hl = rows.includes(LV.cur) ? LV.cur : rows[0];
   $('#l-rows').innerHTML = rows.map(ch => `<button class="l-row${ch === LV.hl ? ' hl' : ''}" data-lch="${esc(ch.id)}">
     <span class="no">${ch.no}</span>${liveLogo(ch)}<span class="txt"><strong>${esc(ch.n)}</strong><span>${esc(LIVE_CAT(ch.cat))} · ${esc(ch.q)}</span></span>
-    ${ch === LV.cur ? '<span class="lv-pill">İZLENİYOR</span>' : ''}</button>`).join('');
+    ${ch === LV.cur ? `<span class="lv-pill">${T('İZLENİYOR')}</span>` : ''}</button>`).join('');
   $('.l-chips .chip.on')?.scrollIntoView({ inline: 'center', block: 'nearest' });
   $('#l-rows .l-row.hl')?.scrollIntoView({ block: 'nearest' });
 }
@@ -1923,7 +1938,7 @@ function closeLiveList() {
 function showOSD(ch, typed) {
   const osd = $('#l-osd');
   osd.innerHTML = typed ? `<div class="no">${esc(typed)}<span style="opacity:.4">_</span></div>`
-    : `<div class="no">${ch.no}</div>${liveLogo(ch)}<div><strong>${esc(ch.n)}</strong><span>${esc(LIVE_CAT(ch.cat))} · <span class="lv-dot"></span>CANLI</span></div>`;
+    : `<div class="no">${ch.no}</div>${liveLogo(ch)}<div><strong>${esc(ch.n)}</strong><span>${esc(LIVE_CAT(ch.cat))} · <span class="lv-dot"></span>${T('CANLI')}</span></div>`;
   osd.classList.add('show');
   clearTimeout(LV.osdT);
   LV.osdT = setTimeout(() => osd.classList.remove('show'), typed ? 1600 : 3200);
@@ -1958,7 +1973,7 @@ function stopLiveMedia() {
 async function openLive(id) {
   await loadLive();
   const ch = LV.data?.channels.find(c => c.id === id);
-  if (!ch) return toast('Kanal bulunamadı.');
+  if (!ch) return toast(T('Kanal bulunamadı.'));
   if (!LV.open) {
     LV.open = true;
     LV.pcat = '';
@@ -1979,7 +1994,7 @@ function tuneLive(ch) {
   store.set('live_recent', [ch.id, ...store.get('live_recent', []).filter(x => x !== ch.id)].slice(0, 8));
   $('#l-title').textContent = ch.n;
   $('#l-sub').textContent = `${ch.no} · ${LIVE_CAT(ch.cat)} · ${ch.q}`;
-  document.title = `${ch.n} · Canlı TV · Homeflix`;
+  document.title = `${ch.n} · ${T('Canlı TV')} · Homeflix`;
   $('#l-loading-logo').outerHTML = liveLogo(ch).replace('class="l-logo"', 'class="l-logo" id="l-loading-logo"');
   $('#l-loading').classList.remove('off');
   $('#l-error').hidden = true;
@@ -2060,7 +2075,7 @@ function liveAttempt(ch, tries, i, seq) {
 function liveFailed(ch, code) {
   $('#l-loading').classList.add('off');
   const err = $('#l-error');
-  err.innerHTML = `<b>${esc(ch.n)} şu an açılmıyor</b>${ch.tr ? 'Bu kanal yalnızca Türkiye içinden izlenebiliyor. ' : ''}Başka bir kanal seçin${PORTRAIT() ? '.' : ' (OK).'}`;
+  err.innerHTML = `<b>${T('{name} şu an açılmıyor', { name: esc(ch.n) })}</b>${ch.tr ? T('Bu kanal yalnızca Türkiye içinden izlenebiliyor. ') : ''}${T('Başka bir kanal seçin')}${PORTRAIT() ? '.' : ' (OK).'}`;
   err.hidden = false;
   if (!LV.list) openLiveList();
   api.post('/api/live/fail', { id: ch.id, code }).catch(() => {});
@@ -2080,7 +2095,7 @@ function liveNumber(d) {
   LV.numT = setTimeout(() => {
     const ch = LV.data.channels.find(c => c.no === +LV.numBuf);
     LV.numBuf = '';
-    if (ch) tuneLive(ch); else toast('Bu numarada kanal yok.', 1500);
+    if (ch) tuneLive(ch); else toast(T('Bu numarada kanal yok.'), 1500);
   }, 1200);
 }
 
@@ -2181,9 +2196,9 @@ window.addEventListener('keydown', e => {
 /* ================================================================ global events */
 function shuffleMovie() {
   const pool = randPool();
-  if (!pool.length) return toast(S.titles.length ? 'Rastgele film ayarlarına uyan film yok. Ayarlar’dan seçimleri genişletin.' : 'Kütüphanede film yok.', 3200);
+  if (!pool.length) return toast(T(S.titles.length ? 'Rastgele film ayarlarına uyan film yok. Ayarlar’dan seçimleri genişletin.' : 'Kütüphanede film yok.'), 3200);
   const m = pool[Math.floor(Math.random() * pool.length)];
-  toast(`${icon('shuffle')} Rastgele seçildi: <b>${esc(m.t)}</b>`, 2200);
+  toast(`${icon('shuffle')} ${T('Rastgele seçildi: <b>{t}</b>', { t: esc(m.t) })}`, 2200);
   setTimeout(() => play('m', m.id, { title: m.t }), 1100);
 }
 
@@ -2228,7 +2243,9 @@ document.addEventListener('click', async e => {
     return openDetail(open.dataset.open);
   }
   const cp = t.closest('[data-copy]');
-  if (cp) { navigator.clipboard?.writeText(cp.dataset.copy); return toast('Adres kopyalandı'); }
+  if (cp) { navigator.clipboard?.writeText(cp.dataset.copy); return toast(T('Adres kopyalandı')); }
+  const lang = t.closest('[data-lang]');
+  if (lang) return setLang(lang.dataset.lang);
   const rand = t.closest('[data-rand]');
   if (rand) return randAction(rand);
   const go = t.closest('[data-goto]');
@@ -2285,6 +2302,7 @@ async function migrateV1() {
 async function boot() {
   S.browse.movies.sort = store.get('sort_movies', 'added');
   S.browse.series.sort = store.get('sort_series', 'added');
+  i18nPage();
   wirePlayer();
   $('#view').innerHTML = `<div style="height:100vh;display:grid;place-items:center"><div class="spin" style="width:40px;height:40px;border-width:3px"></div></div>`;
   await migrateV1();

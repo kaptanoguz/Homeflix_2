@@ -73,3 +73,7 @@ data/                  database, posters, cache (copied from v1)
 ```
 
 v1 (`../Homeflix_Linux`) is left as it is; v2 runs independently of it.
+
+## License
+
+Homeflix is free software, released under the [GNU General Public License v3.0](LICENSE). You may use, change and share it. If you distribute a changed version, you must share its source code under the same license.

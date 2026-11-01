@@ -213,7 +213,9 @@ def build_library():
 
 @app.route('/')
 def index():
-    return render_template('index.html', v=int(os.path.getmtime(os.path.join(BASE_DIR, 'static', 'app.js'))))
+    # The newest of the page's own files, so browsers fetch them again after an update.
+    v = max(os.path.getmtime(os.path.join(BASE_DIR, 'static', f)) for f in ('app.js', 'i18n.js', 'app.css'))
+    return render_template('index.html', v=int(v))
 
 
 @app.route('/api/library')
